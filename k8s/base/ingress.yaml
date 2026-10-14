@@ -1,0 +1,42 @@
+# Ponto de entrada externo do cluster. Quando o API Gateway existir, as rotas
+# passam a apontar para ele em vez de ir direto aos servicos.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: distrischool
+  labels:
+    app.kubernetes.io/part-of: distrischool
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # Somente a API; o Actuator fica acessivel apenas dentro do cluster
+          - path: /api/alunos
+            pathType: Prefix
+            backend:
+              service:
+                name: school-core-service
+                port:
+                  name: http
+          - path: /api/professores
+            pathType: Prefix
+            backend:
+              service:
+                name: school-core-service
+                port:
+                  name: http
+          - path: /api/turmas
+            pathType: Prefix
+            backend:
+              service:
+                name: school-core-service
+                port:
+                  name: http
+          - path: /api/tecnicos
+            pathType: Prefix
+            backend:
+              service:
+                name: school-core-service
+                port:
+                  name: http

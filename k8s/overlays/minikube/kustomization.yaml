@@ -1,0 +1,33 @@
+# Ambiente de desenvolvimento local (minikube).
+# Uso: kubectl apply -k k8s/overlays/minikube
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# A imagem e construida direto no Docker do minikube (minikube image build),
+# por isso nao ha registry nem pull
+images:
+  - name: school-core-service
+    newName: school-core-service
+    newTag: dev
+
+patches:
+  - target:
+      kind: Deployment
+      name: school-core-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+
+# Credenciais apenas de desenvolvimento. Em producao (EKS/AKS) o Secret
+# deve vir de um cofre (AWS Secrets Manager / Azure Key Vault), nunca do repositorio.
+secretGenerator:
+  - name: postgres-credentials
+    namespace: distrischool
+    literals:
+      - POSTGRES_DB=school_core
+      - POSTGRES_USER=school_core
+      - POSTGRES_PASSWORD=school_core

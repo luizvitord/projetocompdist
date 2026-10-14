@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: distrischool
+
+resources:
+  - namespace.yaml
+  - postgres/service.yaml
+  - postgres/statefulset.yaml
+  - kafka/service.yaml
+  - kafka/statefulset.yaml
+  - school-core-service/service.yaml
+  - school-core-service/deployment.yaml
+  - school-core-service/hpa.yaml
+  - ingress.yaml
+
+# Configuracao nao sensivel do school-core-service (lida via envFrom).
+# O Secret postgres-credentials e definido em cada overlay.
+configMapGenerator:
+  - name: school-core-config
+    literals:
+      - SERVER_PORT=8081
+      - DB_URL=jdbc:postgresql://postgres:5432/school_core
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      # Logs em JSON, prontos para coleta centralizada (ELK)
+      - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
