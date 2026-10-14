@@ -75,7 +75,8 @@ minikube tunnel
 ```
 
 A API fica disponível em `http://127.0.0.1/api/alunos`, `/api/professores`, `/api/turmas`
-e `/api/tecnicos`.
+e `/api/tecnicos`. A documentação interativa (Swagger) fica em
+`http://127.0.0.1/swagger-ui/index.html`.
 
 **Opção 2: port-forward** (direto no Service, sem Ingress):
 
