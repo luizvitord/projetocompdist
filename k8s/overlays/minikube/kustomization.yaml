@@ -9,14 +9,14 @@ resources:
 # A imagem e construida direto no Docker do minikube (minikube image build),
 # por isso nao ha registry nem pull
 images:
-  - name: school-core-service
-    newName: school-core-service
+  - name: gestao-administrativa-service
+    newName: gestao-administrativa-service
     newTag: dev
 
 patches:
   - target:
       kind: Deployment
-      name: school-core-service
+      name: gestao-administrativa-service
     patch: |-
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
@@ -25,9 +25,9 @@ patches:
 # Credenciais apenas de desenvolvimento. Em producao (EKS/AKS) o Secret
 # deve vir de um cofre (AWS Secrets Manager / Azure Key Vault), nunca do repositorio.
 secretGenerator:
-  - name: postgres-credentials
+  - name: postgres-administrativa-credentials
     namespace: distrischool
     literals:
-      - POSTGRES_DB=school_core
-      - POSTGRES_USER=school_core
-      - POSTGRES_PASSWORD=school_core
+      - POSTGRES_DB=gestao_administrativa
+      - POSTGRES_USER=gestao_administrativa
+      - POSTGRES_PASSWORD=gestao_administrativa

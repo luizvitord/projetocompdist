@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gestao-administrativa-service
+  labels:
+    app.kubernetes.io/name: gestao-administrativa-service
+    app.kubernetes.io/part-of: distrischool
+spec:
+  # Valor inicial; depois o HPA ajusta entre minReplicas e maxReplicas
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gestao-administrativa-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gestao-administrativa-service
+        app.kubernetes.io/part-of: distrischool
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        # Evita CrashLoopBackOff enquanto o Postgres ainda esta subindo (o Flyway precisa do banco)
+        - name: wait-for-postgres
+          image: postgres:17
+          command: ["sh", "-c", "until pg_isready -h postgres-administrativa -p 5432; do echo 'aguardando postgres'; sleep 2; done"]
+          securityContext:
+            runAsUser: 999
+      containers:
+        - name: gestao-administrativa-service
+          image: gestao-administrativa-service
+          ports:
+            - name: http
+              containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: gestao-administrativa-config
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-administrativa-credentials
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-administrativa-credentials
+                  key: POSTGRES_PASSWORD
+          # Probes expostas pelo Spring Boot Actuator
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            timeoutSeconds: 3
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            timeoutSeconds: 3
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            timeoutSeconds: 3
+            periodSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            # Da tempo de o pod sair dos endpoints do Service antes do graceful shutdown
+            preStop:
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi

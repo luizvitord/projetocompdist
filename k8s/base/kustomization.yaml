@@ -5,22 +5,22 @@ namespace: distrischool
 
 resources:
   - namespace.yaml
-  - postgres/service.yaml
-  - postgres/statefulset.yaml
+  - postgres-administrativa/service.yaml
+  - postgres-administrativa/statefulset.yaml
   - kafka/service.yaml
   - kafka/statefulset.yaml
-  - school-core-service/service.yaml
-  - school-core-service/deployment.yaml
-  - school-core-service/hpa.yaml
+  - gestao-administrativa-service/service.yaml
+  - gestao-administrativa-service/deployment.yaml
+  - gestao-administrativa-service/hpa.yaml
   - ingress.yaml
 
-# Configuracao nao sensivel do school-core-service (lida via envFrom).
-# O Secret postgres-credentials e definido em cada overlay.
+# Configuracao nao sensivel do gestao-administrativa-service (lida via envFrom).
+# O Secret postgres-administrativa-credentials e definido em cada overlay.
 configMapGenerator:
-  - name: school-core-config
+  - name: gestao-administrativa-config
     literals:
       - SERVER_PORT=8081
-      - DB_URL=jdbc:postgresql://postgres:5432/school_core
+      - DB_URL=jdbc:postgresql://postgres-administrativa:5432/gestao_administrativa
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       # Logs em JSON, prontos para coleta centralizada (ELK)
       - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs

@@ -16,42 +16,36 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: school-core-service
+                name: gestao-administrativa-service
                 port:
                   name: http
           - path: /api/professores
             pathType: Prefix
             backend:
               service:
-                name: school-core-service
+                name: gestao-administrativa-service
                 port:
                   name: http
           - path: /api/turmas
             pathType: Prefix
             backend:
               service:
-                name: school-core-service
+                name: gestao-administrativa-service
                 port:
                   name: http
           - path: /api/tecnicos
             pathType: Prefix
             backend:
               service:
-                name: school-core-service
+                name: gestao-administrativa-service
                 port:
                   name: http
-          # Documentacao da API (Swagger UI e especificacao OpenAPI)
-          - path: /swagger-ui
+          # Documentacao da API (Swagger UI e OpenAPI) sob o prefixo do servico:
+          # /administrativa/swagger-ui.html e /administrativa/v3/api-docs
+          - path: /administrativa
             pathType: Prefix
             backend:
               service:
-                name: school-core-service
-                port:
-                  name: http
-          - path: /v3/api-docs
-            pathType: Prefix
-            backend:
-              service:
-                name: school-core-service
+                name: gestao-administrativa-service
                 port:
                   name: http

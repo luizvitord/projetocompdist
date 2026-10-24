@@ -1,0 +1,22 @@
+# Escalabilidade horizontal pelo uso de CPU (requer o metrics-server no cluster)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gestao-administrativa-service
+  labels:
+    app.kubernetes.io/name: gestao-administrativa-service
+    app.kubernetes.io/part-of: distrischool
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gestao-administrativa-service
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
