@@ -1,6 +1,7 @@
 package com.distrischool.gestao_escolar.turma;
 
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
+import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.common.ServicoIndisponivelException;
 import com.distrischool.gestao_escolar.turma.ScheduleUpdatedMessage.Acao;
 import com.distrischool.gestao_escolar.turma.ScheduleUpdatedMessage.DisciplinaOfertada;
@@ -44,6 +45,8 @@ class TurmaReplicaServiceTest {
     void preparar() {
         TurmaReplicaRepository repository = mock(TurmaReplicaRepository.class);
         when(repository.findByIdParaAtualizacao(anyLong()))
+                .thenAnswer(inv -> Optional.ofNullable(replica.get(inv.<Long>getArgument(0))));
+        when(repository.findById(anyLong()))
                 .thenAnswer(inv -> Optional.ofNullable(replica.get(inv.<Long>getArgument(0))));
         when(repository.existsById(anyLong())).thenAnswer(inv -> replica.containsKey(inv.<Long>getArgument(0)));
         when(repository.save(any())).thenAnswer(inv -> salvar(inv.getArgument(0)));
@@ -262,6 +265,33 @@ class TurmaReplicaServiceTest {
 
         assertThatThrownBy(() -> service.garantirNaReplica(12L))
                 .isInstanceOf(ServicoIndisponivelException.class);
+    }
+
+    // --- pré-condição de chamadas e avaliações ---
+
+    @Test
+    void ofertaVigenteNaTurma() {
+        service.aplicar(evento(Acao.CRIADA, T1, 35, List.of(MAT, POR)));
+
+        assertThat(service.obterComOferta(12L, 3L).getId()).isEqualTo(12L);
+    }
+
+    @Test
+    void disciplinaNaoOfertadaOuRetiradaRetorna409() {
+        service.aplicar(evento(Acao.CRIADA, T1, 35, List.of(MAT, POR)));
+        service.aplicar(evento(Acao.ATUALIZADA, T2, 35, List.of(MAT)));
+
+        assertThatThrownBy(() -> service.obterComOferta(12L, 4L)).isInstanceOf(RegraNegocioException.class);
+        assertThatThrownBy(() -> service.obterComOferta(12L, 99L)).isInstanceOf(RegraNegocioException.class);
+    }
+
+    @Test
+    void turmaRemovidaRetorna409MesmoComAOferta() {
+        service.aplicar(evento(Acao.REMOVIDA, T1, 35, List.of(MAT)));
+
+        assertThatThrownBy(() -> service.obterComOferta(12L, 3L))
+                .isInstanceOf(RegraNegocioException.class)
+                .hasMessageContaining("removida");
     }
 
     private static ScheduleUpdatedMessage evento(Acao acao, Instant occurredAt, Integer capacidade,

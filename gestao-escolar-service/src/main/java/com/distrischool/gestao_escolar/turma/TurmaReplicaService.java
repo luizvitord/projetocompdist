@@ -1,6 +1,7 @@
 package com.distrischool.gestao_escolar.turma;
 
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
+import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.turma.ScheduleUpdatedMessage.Acao;
 import com.distrischool.gestao_escolar.turma.ScheduleUpdatedMessage.DisciplinaOfertada;
 import lombok.extern.slf4j.Slf4j;
@@ -105,6 +106,24 @@ public class TurmaReplicaService {
     public TurmaReplica obter(Long turmaId) {
         return turmaReplicaRepository.findById(turmaId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Turma", turmaId));
+    }
+
+    /**
+     * Turma não removida que oferta hoje a disciplina: pré-condição para registrar chamadas e
+     * avaliações. Chame {@link #garantirNaReplica} antes.
+     *
+     * @throws RegraNegocioException se a turma foi removida ou não oferta a disciplina
+     */
+    @Transactional(readOnly = true)
+    public TurmaReplica obterComOferta(Long turmaId, Long disciplinaId) {
+        TurmaReplica turma = obter(turmaId);
+        if (turma.isRemovida()) {
+            throw new RegraNegocioException("A turma " + turma.getCodigo() + " foi removida");
+        }
+        if (!turma.ofertaDisciplina(disciplinaId)) {
+            throw new RegraNegocioException("A disciplina " + disciplinaId + " não é ofertada na turma " + turma.getCodigo());
+        }
+        return turma;
     }
 
     private void gravarDoFallback(Long turmaId, TurmaAdministrativaResponse resposta) {

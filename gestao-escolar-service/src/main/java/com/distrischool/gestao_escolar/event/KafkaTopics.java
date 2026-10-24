@@ -5,6 +5,7 @@ public final class KafkaTopics {
     public static final String STUDENT_CREATED = "student.created";
     public static final String ENROLLMENT_CREATED = "enrollment.created";
     public static final String ENROLLMENT_UPDATED = "enrollment.updated";
+    public static final String ATTENDANCE_RECORDED = "attendance.recorded";
 
     /** Consumido; produzido pelo gestao-administrativa-service. */
     public static final String SCHEDULE_UPDATED = "schedule.updated";

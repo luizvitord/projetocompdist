@@ -7,6 +7,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,5 +71,21 @@ class EventContractTest {
 
         assertThat(json.has("turmaDestinoId")).isTrue();
         assertThat(json.get("turmaDestinoId").isNull()).isTrue();
+    }
+
+    @Test
+    void attendanceRecorded() {
+        JsonNode json = serializar(KafkaTopics.ATTENDANCE_RECORDED, new AttendanceRecordedEvent(
+                500L, 12L, 3L, LocalDate.of(2026, 10, 20),
+                List.of(new AttendanceRecordedEvent.Ausencia(2L, "FALTA"), new AttendanceRecordedEvent.Ausencia(3L, "ATRASO")),
+                Instant.parse("2026-10-24T11:00:00Z")));
+
+        assertThat(json.propertyNames()).containsExactlyInAnyOrder(
+                "chamadaId", "turmaId", "disciplinaId", "data", "ausencias", "occurredAt");
+        assertThat(json.get("data").asString()).isEqualTo("2026-10-20");
+        JsonNode ausencia = json.get("ausencias").get(0);
+        assertThat(ausencia.propertyNames()).containsExactlyInAnyOrder("alunoId", "status");
+        assertThat(ausencia.get("alunoId").asLong()).isEqualTo(2L);
+        assertThat(ausencia.get("status").asString()).isEqualTo("FALTA");
     }
 }

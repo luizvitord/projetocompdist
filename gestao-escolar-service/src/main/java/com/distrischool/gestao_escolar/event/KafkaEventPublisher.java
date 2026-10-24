@@ -34,6 +34,11 @@ public class KafkaEventPublisher {
         send(KafkaTopics.ENROLLMENT_UPDATED, event.alunoId(), event);
     }
 
+    @TransactionalEventListener
+    public void on(AttendanceRecordedEvent event) {
+        send(KafkaTopics.ATTENDANCE_RECORDED, event.turmaId(), event);
+    }
+
     private void send(String topic, Long key, Object event) {
         kafkaTemplate.send(topic, String.valueOf(key), event)
                 .whenComplete((result, ex) -> {
