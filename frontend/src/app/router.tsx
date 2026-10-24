@@ -12,6 +12,7 @@ import { DisciplinasPage } from '../features/disciplinas/DisciplinasPage';
 import { PessoasPage } from '../features/pessoas/PessoasPage';
 import { MatriculasPage } from '../features/matriculas/MatriculasPage';
 import { AvaliacoesPage } from '../features/avaliacoes/AvaliacoesPage';
+import { FrequenciaPage } from '../features/frequencia/FrequenciaPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -25,7 +26,8 @@ export const router = createBrowserRouter([
     { path: '/disciplinas', element: <DisciplinasPage /> },
     { path: '/pessoas', element: <PessoasPage /> },
     { path: '/matriculas', element: <MatriculasPage /> },
-    { path: '/avaliacoes', element: <AvaliacoesPage /> }
+    { path: '/avaliacoes', element: <AvaliacoesPage /> },
+    { path: '/frequencia', element: <FrequenciaPage /> }
   ] }] },
   { path: '*', element: <NotFoundPage /> }
 ]);
