@@ -74,7 +74,7 @@ Quando os pods do `gestao-administrativa-service` estiverem `1/1 Running`, o Fly
 minikube tunnel
 ```
 
-A API fica disponível em `http://127.0.0.1/api/professores`, `/api/turmas`
+A API fica disponível em `http://127.0.0.1/api/professores`, `/api/turmas`, `/api/disciplinas`
 e `/api/tecnicos`. A documentação interativa (Swagger) fica em
 `http://127.0.0.1/administrativa/swagger-ui.html`.
 

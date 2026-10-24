@@ -26,6 +26,13 @@ spec:
                 name: gestao-administrativa-service
                 port:
                   name: http
+          - path: /api/disciplinas
+            pathType: Prefix
+            backend:
+              service:
+                name: gestao-administrativa-service
+                port:
+                  name: http
           - path: /api/tecnicos
             pathType: Prefix
             backend:

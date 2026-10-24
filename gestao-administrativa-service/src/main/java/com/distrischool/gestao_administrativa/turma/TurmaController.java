@@ -60,6 +60,21 @@ public class TurmaController {
         turmaService.excluir(id);
     }
 
+    @PutMapping("/{id}/disciplinas/{disciplinaId}")
+    public TurmaResponse ofertarDisciplina(
+            @PathVariable Long id,
+            @PathVariable Long disciplinaId,
+            @RequestBody(required = false) OfertaDisciplinaRequest request) {
+        Long professorId = request != null ? request.professorId() : null;
+        return turmaService.ofertarDisciplina(id, disciplinaId, professorId);
+    }
+
+    @DeleteMapping("/{id}/disciplinas/{disciplinaId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void retirarDisciplina(@PathVariable Long id, @PathVariable Long disciplinaId) {
+        turmaService.retirarDisciplina(id, disciplinaId);
+    }
+
     @PutMapping("/{id}/professores/{professorId}")
     public TurmaResponse atribuirProfessor(@PathVariable Long id, @PathVariable Long professorId) {
         return turmaService.atribuirProfessor(id, professorId);
