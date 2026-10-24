@@ -12,4 +12,13 @@ public class KafkaTopicConfig {
     NewTopic studentCreatedTopic() {
         return TopicBuilder.name(KafkaTopics.STUDENT_CREATED).partitions(3).replicas(1).build();
     }
+
+    /**
+     * Mesmo número de partições do schedule.updated: o DeadLetterPublishingRecoverer publica na
+     * mesma partição de origem.
+     */
+    @Bean
+    NewTopic scheduleUpdatedDltTopic() {
+        return TopicBuilder.name(KafkaTopics.SCHEDULE_UPDATED_DLT).partitions(3).replicas(1).build();
+    }
 }
