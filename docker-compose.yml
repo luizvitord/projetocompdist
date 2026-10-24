@@ -38,6 +38,15 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
 
+  api-gateway:
+    build: ./api-gateway
+    environment: { ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081, ESCOLAR_URL: http://gestao-escolar-service:8082, FRONTEND_ORIGIN: http://localhost:5173 }
+    ports: ["8080:8080"]
+  frontend:
+    build: ./frontend
+    ports: ["5173:80"]
+    depends_on: [api-gateway]
+
 volumes:
   postgres-administrativa-data:
   postgres-escolar-data:
