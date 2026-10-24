@@ -40,6 +40,41 @@ spec:
                 name: gestao-administrativa-service
                 port:
                   name: http
+          - path: /api/alunos
+            pathType: Prefix
+            backend:
+              service:
+                name: gestao-escolar-service
+                port:
+                  name: http
+          - path: /api/matriculas
+            pathType: Prefix
+            backend:
+              service:
+                name: gestao-escolar-service
+                port:
+                  name: http
+          - path: /api/frequencias
+            pathType: Prefix
+            backend:
+              service:
+                name: gestao-escolar-service
+                port:
+                  name: http
+          - path: /api/avaliacoes
+            pathType: Prefix
+            backend:
+              service:
+                name: gestao-escolar-service
+                port:
+                  name: http
+          - path: /api/notas
+            pathType: Prefix
+            backend:
+              service:
+                name: gestao-escolar-service
+                port:
+                  name: http
           # Documentacao da API (Swagger UI e OpenAPI) sob o prefixo do servico:
           # /administrativa/swagger-ui.html e /administrativa/v3/api-docs
           - path: /administrativa
@@ -47,5 +82,13 @@ spec:
             backend:
               service:
                 name: gestao-administrativa-service
+                port:
+                  name: http
+          # /escolar/swagger-ui.html e /escolar/v3/api-docs
+          - path: /escolar
+            pathType: Prefix
+            backend:
+              service:
+                name: gestao-escolar-service
                 port:
                   name: http

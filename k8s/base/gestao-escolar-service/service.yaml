@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gestao-escolar-service
+  labels:
+    app.kubernetes.io/name: gestao-escolar-service
+    app.kubernetes.io/part-of: distrischool
+spec:
+  selector:
+    app.kubernetes.io/name: gestao-escolar-service
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http

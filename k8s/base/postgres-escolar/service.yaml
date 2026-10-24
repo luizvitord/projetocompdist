@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-escolar
+  labels:
+    app.kubernetes.io/name: postgres-escolar
+    app.kubernetes.io/part-of: distrischool
+spec:
+  selector:
+    app.kubernetes.io/name: postgres-escolar
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

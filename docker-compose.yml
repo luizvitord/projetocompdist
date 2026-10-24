@@ -1,4 +1,4 @@
-# Infraestrutura local para desenvolvimento do gestao-administrativa-service
+# Infraestrutura local para desenvolvimento do gestao-administrativa-service e do gestao-escolar-service
 services:
   postgres-administrativa:
     image: postgres:17
@@ -10,6 +10,17 @@ services:
       - "15432:5432"
     volumes:
       - postgres-administrativa-data:/var/lib/postgresql/data
+
+  postgres-escolar:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: gestao_escolar
+      POSTGRES_USER: gestao_escolar
+      POSTGRES_PASSWORD: gestao_escolar
+    ports:
+      - "15433:5432"
+    volumes:
+      - postgres-escolar-data:/var/lib/postgresql/data
 
   kafka:
     image: apache/kafka:4.1.0
@@ -29,3 +40,4 @@ services:
 
 volumes:
   postgres-administrativa-data:
+  postgres-escolar-data:

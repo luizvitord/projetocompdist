@@ -7,11 +7,16 @@ resources:
   - namespace.yaml
   - postgres-administrativa/service.yaml
   - postgres-administrativa/statefulset.yaml
+  - postgres-escolar/service.yaml
+  - postgres-escolar/statefulset.yaml
   - kafka/service.yaml
   - kafka/statefulset.yaml
   - gestao-administrativa-service/service.yaml
   - gestao-administrativa-service/deployment.yaml
   - gestao-administrativa-service/hpa.yaml
+  - gestao-escolar-service/service.yaml
+  - gestao-escolar-service/deployment.yaml
+  - gestao-escolar-service/hpa.yaml
   - ingress.yaml
 
 # Configuracao nao sensivel do gestao-administrativa-service (lida via envFrom).
@@ -23,4 +28,15 @@ configMapGenerator:
       - DB_URL=jdbc:postgresql://postgres-administrativa:5432/gestao_administrativa
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       # Logs em JSON, prontos para coleta centralizada (ELK)
+      - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
+
+  # Configuracao nao sensivel do gestao-escolar-service.
+  # O Secret postgres-escolar-credentials e definido em cada overlay.
+  - name: gestao-escolar-config
+    literals:
+      - SERVER_PORT=8082
+      - DB_URL=jdbc:postgresql://postgres-escolar:5432/gestao_escolar
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      # Fallback sincrono para turmas que ainda nao chegaram a replica local
+      - ADMINISTRATIVA_URL=http://gestao-administrativa-service:8081
       - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs

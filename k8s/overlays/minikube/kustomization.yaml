@@ -12,11 +12,21 @@ images:
   - name: gestao-administrativa-service
     newName: gestao-administrativa-service
     newTag: dev
+  - name: gestao-escolar-service
+    newName: gestao-escolar-service
+    newTag: dev
 
 patches:
   - target:
       kind: Deployment
       name: gestao-administrativa-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target:
+      kind: Deployment
+      name: gestao-escolar-service
     patch: |-
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
@@ -31,3 +41,9 @@ secretGenerator:
       - POSTGRES_DB=gestao_administrativa
       - POSTGRES_USER=gestao_administrativa
       - POSTGRES_PASSWORD=gestao_administrativa
+  - name: postgres-escolar-credentials
+    namespace: distrischool
+    literals:
+      - POSTGRES_DB=gestao_escolar
+      - POSTGRES_USER=gestao_escolar
+      - POSTGRES_PASSWORD=gestao_escolar
