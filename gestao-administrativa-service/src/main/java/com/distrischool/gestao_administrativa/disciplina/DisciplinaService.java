@@ -3,6 +3,7 @@ package com.distrischool.gestao_administrativa.disciplina;
 import com.distrischool.gestao_administrativa.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_administrativa.common.RegraNegocioException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +17,7 @@ import org.springframework.util.StringUtils;
 public class DisciplinaService {
 
     private final DisciplinaRepository disciplinaRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public DisciplinaResponse criar(DisciplinaRequest request) {
@@ -47,8 +49,15 @@ public class DisciplinaService {
         if (disciplinaRepository.existsByCodigoIgnoreCaseAndIdNot(request.codigo(), id)) {
             throw new RegraNegocioException("Já existe uma disciplina com o código " + request.codigo());
         }
+        boolean mudouNomeOuCodigo = !disciplina.getNome().equals(request.nome())
+                || !disciplina.getCodigo().equals(request.codigo());
         aplicar(disciplina, request);
-        return DisciplinaResponse.from(salvar(disciplina, request.codigo()));
+        Disciplina salva = salvar(disciplina, request.codigo());
+
+        if (mudouNomeOuCodigo) {
+            eventPublisher.publishEvent(new DisciplinaAlteradaEvent(id));
+        }
+        return DisciplinaResponse.from(salva);
     }
 
     /** Exclusão lógica: a disciplina some das listagens, mas o registro é preservado. */

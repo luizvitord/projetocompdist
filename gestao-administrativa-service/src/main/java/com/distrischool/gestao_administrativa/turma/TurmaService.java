@@ -3,6 +3,7 @@ package com.distrischool.gestao_administrativa.turma;
 import com.distrischool.gestao_administrativa.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_administrativa.common.RegraNegocioException;
 import com.distrischool.gestao_administrativa.disciplina.Disciplina;
+import com.distrischool.gestao_administrativa.disciplina.DisciplinaAlteradaEvent;
 import com.distrischool.gestao_administrativa.disciplina.DisciplinaService;
 import com.distrischool.gestao_administrativa.event.ScheduleUpdatedEvent;
 import com.distrischool.gestao_administrativa.event.ScheduleUpdatedEvent.Acao;
@@ -11,6 +12,7 @@ import com.distrischool.gestao_administrativa.professor.Professor;
 import com.distrischool.gestao_administrativa.professor.ProfessorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +21,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -77,8 +82,10 @@ public class TurmaService {
     @Transactional
     public void excluir(Long id) {
         Turma turma = obter(id);
+        // O evento carrega o último estado da turma, então é montado antes da remoção
+        ScheduleUpdatedEvent evento = montarScheduleUpdated(turma, Acao.REMOVIDA);
         turmaRepository.delete(turma);
-        publicarScheduleUpdated(turma, Acao.REMOVIDA);
+        eventPublisher.publishEvent(evento);
     }
 
     @Transactional
@@ -101,21 +108,29 @@ public class TurmaService {
             throw new RegraNegocioException("A disciplina " + disciplina.getCodigo() + " está inativa e não pode ser ofertada");
         }
 
-        TurmaDisciplina oferta = turma.getDisciplinas().stream()
+        TurmaDisciplina existente = turma.getDisciplinas().stream()
                 .filter(td -> td.getDisciplina().getId().equals(disciplinaId))
                 .findFirst()
-                .orElseGet(() -> {
-                    TurmaDisciplina nova = new TurmaDisciplina();
-                    nova.setTurma(turma);
-                    nova.setDisciplina(disciplina);
-                    turma.getDisciplinas().add(nova);
-                    return nova;
-                });
+                .orElse(null);
+        boolean mudou = existente == null || !Objects.equals(idDoProfessor(existente), professorId);
+
+        TurmaDisciplina oferta = existente;
+        if (oferta == null) {
+            oferta = new TurmaDisciplina();
+            oferta.setTurma(turma);
+            oferta.setDisciplina(disciplina);
+            turma.getDisciplinas().add(oferta);
+        }
         oferta.setProfessor(professor);
         if (professor != null) {
             atribuirSeNecessario(turma, professor);
         }
         flushComoRegraNegocio();
+
+        // Repetir a mesma oferta (mesma disciplina, mesmo professor) não altera nada
+        if (mudou) {
+            publicarScheduleUpdated(turma, Acao.ATUALIZADA);
+        }
         return TurmaResponse.from(turma);
     }
 
@@ -126,6 +141,18 @@ public class TurmaService {
         if (!removida) {
             throw new RecursoNaoEncontradoException("Disciplina na turma " + turma.getCodigo(), disciplinaId);
         }
+        publicarScheduleUpdated(turma, Acao.ATUALIZADA);
+    }
+
+    /**
+     * Uma disciplina renomeada (ou com o código alterado) muda o estado de cada turma que a oferta:
+     * publica um {@code schedule.updated} para cada uma delas. Roda na transação da alteração,
+     * então o Kafka só recebe os eventos depois do commit.
+     */
+    @EventListener
+    void aoAlterarDisciplina(DisciplinaAlteradaEvent event) {
+        turmaRepository.findByDisciplinaId(event.disciplinaId())
+                .forEach(turma -> publicarScheduleUpdated(turma, Acao.ATUALIZADA));
     }
 
     @Transactional
@@ -160,7 +187,25 @@ public class TurmaService {
     }
 
     private void publicarScheduleUpdated(Turma turma, Acao acao) {
-        eventPublisher.publishEvent(new ScheduleUpdatedEvent(turma.getId(), turma.getCodigo(), acao, Instant.now()));
+        eventPublisher.publishEvent(montarScheduleUpdated(turma, acao));
+    }
+
+    private static ScheduleUpdatedEvent montarScheduleUpdated(Turma turma, Acao acao) {
+        List<ScheduleUpdatedEvent.DisciplinaOfertada> disciplinas = turma.getDisciplinas().stream()
+                .map(td -> new ScheduleUpdatedEvent.DisciplinaOfertada(
+                        td.getDisciplina().getId(),
+                        td.getDisciplina().getCodigo(),
+                        td.getDisciplina().getNome(),
+                        idDoProfessor(td)))
+                .sorted(Comparator.comparing(ScheduleUpdatedEvent.DisciplinaOfertada::codigo))
+                .toList();
+        return new ScheduleUpdatedEvent(
+                turma.getId(), turma.getCodigo(), turma.getNome(), turma.getAnoLetivo(),
+                turma.getTurno().name(), turma.getCapacidade(), disciplinas, acao, Instant.now());
+    }
+
+    private static Long idDoProfessor(TurmaDisciplina oferta) {
+        return oferta.getProfessor() != null ? oferta.getProfessor().getId() : null;
     }
 
     private static void aplicar(Turma turma, TurmaRequest request) {
