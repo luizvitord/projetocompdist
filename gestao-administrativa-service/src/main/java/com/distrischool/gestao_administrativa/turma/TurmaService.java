@@ -1,7 +1,5 @@
 package com.distrischool.gestao_administrativa.turma;
 
-import com.distrischool.gestao_administrativa.aluno.Aluno;
-import com.distrischool.gestao_administrativa.aluno.AlunoService;
 import com.distrischool.gestao_administrativa.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_administrativa.common.RegraNegocioException;
 import com.distrischool.gestao_administrativa.event.ScheduleUpdatedEvent;
@@ -24,7 +22,6 @@ import java.time.Instant;
 public class TurmaService {
 
     private final TurmaRepository turmaRepository;
-    private final AlunoService alunoService;
     private final ProfessorService professorService;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -67,10 +64,6 @@ public class TurmaService {
         if (turmaRepository.existsByCodigoIgnoreCaseAndIdNot(request.codigo(), id)) {
             throw new RegraNegocioException("Já existe uma turma com o código " + request.codigo());
         }
-        if (request.capacidade() != null && request.capacidade() < turma.getQuantidadeAlunos()) {
-            throw new RegraNegocioException("A capacidade não pode ser menor que o número de alunos matriculados ("
-                    + turma.getQuantidadeAlunos() + ")");
-        }
         aplicar(turma, request);
 
         publicarScheduleUpdated(turma, Acao.ATUALIZADA);
@@ -82,28 +75,6 @@ public class TurmaService {
         Turma turma = obter(id);
         turmaRepository.delete(turma);
         publicarScheduleUpdated(turma, Acao.REMOVIDA);
-    }
-
-    @Transactional
-    public void adicionarAluno(Long turmaId, Long alunoId) {
-        Turma turma = obter(turmaId);
-        Aluno aluno = alunoService.obter(alunoId);
-        if (turma.getAlunos().contains(aluno)) {
-            return;
-        }
-        if (turma.getCapacidade() != null && turma.getAlunos().size() >= turma.getCapacidade()) {
-            throw new RegraNegocioException("A turma " + turma.getCodigo() + " atingiu a capacidade máxima");
-        }
-        turma.getAlunos().add(aluno);
-    }
-
-    @Transactional
-    public void removerAluno(Long turmaId, Long alunoId) {
-        Turma turma = obter(turmaId);
-        boolean removido = turma.getAlunos().removeIf(a -> a.getId().equals(alunoId));
-        if (!removido) {
-            throw new RecursoNaoEncontradoException("Aluno na turma " + turma.getCodigo(), alunoId);
-        }
     }
 
     @Transactional

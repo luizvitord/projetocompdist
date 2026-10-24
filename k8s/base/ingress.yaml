@@ -12,13 +12,6 @@ spec:
     - http:
         paths:
           # Somente a API; o Actuator fica acessivel apenas dentro do cluster
-          - path: /api/alunos
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-administrativa-service
-                port:
-                  name: http
           - path: /api/professores
             pathType: Prefix
             backend:

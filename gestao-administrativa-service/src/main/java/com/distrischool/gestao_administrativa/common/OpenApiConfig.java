@@ -12,7 +12,7 @@ public class OpenApiConfig {
     OpenAPI gestaoAdministrativaOpenApi() {
         return new OpenAPI().info(new Info()
                 .title("DistriSchool - gestao-administrativa-service")
-                .description("Gestão de alunos, professores, turmas e técnicos administrativos")
+                .description("Gestão de professores, turmas e técnicos administrativos")
                 .version("v1"));
     }
 }

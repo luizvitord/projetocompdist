@@ -1,6 +1,5 @@
 package com.distrischool.gestao_administrativa.turma;
 
-import com.distrischool.gestao_administrativa.aluno.Aluno;
 import com.distrischool.gestao_administrativa.professor.Professor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,7 +17,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.Formula;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
@@ -52,22 +50,12 @@ public class Turma {
     private Integer capacidade;
 
     @ManyToMany
-    @JoinTable(
-            name = "turma_aluno",
-            joinColumns = @JoinColumn(name = "turma_id"),
-            inverseJoinColumns = @JoinColumn(name = "aluno_id"))
-    private Set<Aluno> alunos = new HashSet<>();
-
-    @ManyToMany
     @BatchSize(size = 50)
     @JoinTable(
             name = "turma_professor",
             joinColumns = @JoinColumn(name = "turma_id"),
             inverseJoinColumns = @JoinColumn(name = "professor_id"))
     private Set<Professor> professores = new HashSet<>();
-
-    @Formula("(SELECT count(*) FROM turma_aluno ta WHERE ta.turma_id = id)")
-    private int quantidadeAlunos;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

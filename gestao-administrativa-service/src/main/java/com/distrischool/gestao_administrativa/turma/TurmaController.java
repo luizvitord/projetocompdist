@@ -60,18 +60,6 @@ public class TurmaController {
         turmaService.excluir(id);
     }
 
-    @PutMapping("/{id}/alunos/{alunoId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void adicionarAluno(@PathVariable Long id, @PathVariable Long alunoId) {
-        turmaService.adicionarAluno(id, alunoId);
-    }
-
-    @DeleteMapping("/{id}/alunos/{alunoId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void removerAluno(@PathVariable Long id, @PathVariable Long alunoId) {
-        turmaService.removerAluno(id, alunoId);
-    }
-
     @PutMapping("/{id}/professores/{professorId}")
     public TurmaResponse atribuirProfessor(@PathVariable Long id, @PathVariable Long professorId) {
         return turmaService.atribuirProfessor(id, professorId);

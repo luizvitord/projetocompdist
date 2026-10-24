@@ -11,7 +11,6 @@ public record TurmaResponse(
         Integer anoLetivo,
         Turno turno,
         Integer capacidade,
-        int quantidadeAlunos,
         List<ProfessorResumo> professores,
         Instant createdAt,
         Instant updatedAt
@@ -32,7 +31,6 @@ public record TurmaResponse(
                 turma.getAnoLetivo(),
                 turma.getTurno(),
                 turma.getCapacidade(),
-                turma.getQuantidadeAlunos(),
                 professores,
                 turma.getCreatedAt(),
                 turma.getUpdatedAt()

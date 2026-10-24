@@ -18,11 +18,6 @@ public class KafkaEventPublisher {
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @TransactionalEventListener
-    public void on(StudentCreatedEvent event) {
-        send(KafkaTopics.STUDENT_CREATED, event.alunoId(), event);
-    }
-
-    @TransactionalEventListener
     public void on(TeacherAssignedEvent event) {
         send(KafkaTopics.TEACHER_ASSIGNED, event.turmaId(), event);
     }
