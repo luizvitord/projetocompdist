@@ -25,4 +25,6 @@ public interface MatriculaRepository extends JpaRepository<Matricula, Long>, Jpa
     long countByTurmaIdAndStatus(Long turmaId, StatusMatricula status);
 
     List<Matricula> findByTurmaIdAndStatus(Long turmaId, StatusMatricula status);
+
+    List<Matricula> findByAlunoIdAndAnoLetivoOrderByIdAsc(Long alunoId, Integer anoLetivo);
 }

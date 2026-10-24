@@ -5,6 +5,7 @@ import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -87,5 +88,20 @@ class EventContractTest {
         assertThat(ausencia.propertyNames()).containsExactlyInAnyOrder("alunoId", "status");
         assertThat(ausencia.get("alunoId").asLong()).isEqualTo(2L);
         assertThat(ausencia.get("status").asString()).isEqualTo("FALTA");
+    }
+
+    @Test
+    void gradePosted() {
+        JsonNode json = serializar(KafkaTopics.GRADE_POSTED, new GradePostedEvent(
+                9L, 12L, 3L, 1, List.of(new GradePostedEvent.NotaAluno(1L, new BigDecimal("8.50"))),
+                Instant.parse("2026-10-24T11:00:00Z")));
+
+        assertThat(json.propertyNames()).containsExactlyInAnyOrder(
+                "avaliacaoId", "turmaId", "disciplinaId", "bimestre", "notas", "occurredAt");
+        assertThat(json.get("bimestre").asInt()).isEqualTo(1);
+        JsonNode nota = json.get("notas").get(0);
+        assertThat(nota.propertyNames()).containsExactlyInAnyOrder("alunoId", "valor");
+        assertThat(nota.get("alunoId").asLong()).isEqualTo(1L);
+        assertThat(nota.get("valor").decimalValue()).isEqualByComparingTo("8.50");
     }
 }

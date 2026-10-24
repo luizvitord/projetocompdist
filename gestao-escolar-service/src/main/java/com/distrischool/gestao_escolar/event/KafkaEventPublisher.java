@@ -39,6 +39,11 @@ public class KafkaEventPublisher {
         send(KafkaTopics.ATTENDANCE_RECORDED, event.turmaId(), event);
     }
 
+    @TransactionalEventListener
+    public void on(GradePostedEvent event) {
+        send(KafkaTopics.GRADE_POSTED, event.turmaId(), event);
+    }
+
     private void send(String topic, Long key, Object event) {
         kafkaTemplate.send(topic, String.valueOf(key), event)
                 .whenComplete((result, ex) -> {

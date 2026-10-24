@@ -28,6 +28,11 @@ public class KafkaTopicConfig {
         return TopicBuilder.name(KafkaTopics.ATTENDANCE_RECORDED).partitions(3).replicas(1).build();
     }
 
+    @Bean
+    NewTopic gradePostedTopic() {
+        return TopicBuilder.name(KafkaTopics.GRADE_POSTED).partitions(3).replicas(1).build();
+    }
+
     /**
      * Mesmo número de partições do schedule.updated: o DeadLetterPublishingRecoverer publica na
      * mesma partição de origem.
