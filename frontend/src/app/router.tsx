@@ -11,6 +11,7 @@ import { TurmaDetailPage } from '../features/turmas/TurmaDetailPage';
 import { DisciplinasPage } from '../features/disciplinas/DisciplinasPage';
 import { PessoasPage } from '../features/pessoas/PessoasPage';
 import { MatriculasPage } from '../features/matriculas/MatriculasPage';
+import { AvaliacoesPage } from '../features/avaliacoes/AvaliacoesPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -23,7 +24,8 @@ export const router = createBrowserRouter([
     { path: '/turmas/:id', element: <TurmaDetailPage /> },
     { path: '/disciplinas', element: <DisciplinasPage /> },
     { path: '/pessoas', element: <PessoasPage /> },
-    { path: '/matriculas', element: <MatriculasPage /> }
+    { path: '/matriculas', element: <MatriculasPage /> },
+    { path: '/avaliacoes', element: <AvaliacoesPage /> }
   ] }] },
   { path: '*', element: <NotFoundPage /> }
 ]);
