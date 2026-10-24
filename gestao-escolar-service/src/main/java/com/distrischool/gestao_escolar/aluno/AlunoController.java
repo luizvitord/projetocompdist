@@ -39,8 +39,9 @@ public class AlunoController {
     public PagedModel<AlunoResponse> buscar(
             @RequestParam(required = false) String nome,
             @RequestParam(required = false) String matricula,
+            @RequestParam(required = false) Long turmaId,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(alunoService.buscar(nome, matricula, pageable));
+        return new PagedModel<>(alunoService.buscar(nome, matricula, turmaId, pageable));
     }
 
     @GetMapping("/{id}")

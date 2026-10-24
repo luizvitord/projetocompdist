@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -87,6 +88,23 @@ public class TurmaReplicaService {
             // O consumidor gravou a mesma turma em paralelo; o estado vindo do evento prevalece
             log.debug("Turma {} gravada em paralelo pelo consumidor; fallback descartado", turmaId);
         }
+    }
+
+    /**
+     * Turma da réplica com bloqueio pessimista, para regras que dependem do estado atual dela
+     * (vagas). Roda na transação de quem chama; chame {@link #garantirNaReplica} antes.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public TurmaReplica obterComBloqueio(Long turmaId) {
+        return turmaReplicaRepository.findByIdParaAtualizacao(turmaId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Turma", turmaId));
+    }
+
+    /** Turma da réplica, sem bloqueio; chame {@link #garantirNaReplica} antes. */
+    @Transactional(readOnly = true)
+    public TurmaReplica obter(Long turmaId) {
+        return turmaReplicaRepository.findById(turmaId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Turma", turmaId));
     }
 
     private void gravarDoFallback(Long turmaId, TurmaAdministrativaResponse resposta) {

@@ -1,7 +1,9 @@
 package com.distrischool.gestao_escolar.aluno;
 
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
+import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.event.StudentCreatedEvent;
+import com.distrischool.gestao_escolar.matricula.MatriculaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -19,6 +21,7 @@ import java.time.Year;
 public class AlunoService {
 
     private final AlunoRepository alunoRepository;
+    private final MatriculaRepository matriculaRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -34,13 +37,16 @@ public class AlunoService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AlunoResponse> buscar(String nome, String matricula, Pageable pageable) {
+    public Page<AlunoResponse> buscar(String nome, String matricula, Long turmaId, Pageable pageable) {
         Specification<Aluno> spec = Specification.unrestricted();
         if (StringUtils.hasText(nome)) {
             spec = spec.and(AlunoSpecifications.nomeContem(nome.trim()));
         }
         if (StringUtils.hasText(matricula)) {
             spec = spec.and(AlunoSpecifications.matriculaIgual(matricula.trim()));
+        }
+        if (turmaId != null) {
+            spec = spec.and(AlunoSpecifications.matriculadoNaTurma(turmaId));
         }
         return alunoRepository.findAll(spec, pageable).map(AlunoResponse::from);
     }
@@ -57,9 +63,14 @@ public class AlunoService {
         return AlunoResponse.from(aluno);
     }
 
+    /** Só para cadastros feitos por engano: o histórico escolar (matrículas) não pode ser apagado. */
     @Transactional
     public void excluir(Long id) {
-        alunoRepository.delete(obter(id));
+        Aluno aluno = obter(id);
+        if (matriculaRepository.existsByAlunoId(id)) {
+            throw new RegraNegocioException("O aluno tem matrículas e não pode ser excluído");
+        }
+        alunoRepository.delete(aluno);
     }
 
     public Aluno obter(Long id) {

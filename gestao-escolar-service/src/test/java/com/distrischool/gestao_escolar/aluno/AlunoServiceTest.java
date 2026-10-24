@@ -1,6 +1,8 @@
 package com.distrischool.gestao_escolar.aluno;
 
+import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.event.StudentCreatedEvent;
+import com.distrischool.gestao_escolar.matricula.MatriculaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -8,10 +10,13 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
 import java.time.Year;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,14 +24,16 @@ import static org.mockito.Mockito.when;
 class AlunoServiceTest {
 
     private AlunoRepository alunoRepository;
+    private MatriculaRepository matriculaRepository;
     private ApplicationEventPublisher eventPublisher;
     private AlunoService alunoService;
 
     @BeforeEach
     void preparar() {
         alunoRepository = mock(AlunoRepository.class);
+        matriculaRepository = mock(MatriculaRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        alunoService = new AlunoService(alunoRepository, eventPublisher);
+        alunoService = new AlunoService(alunoRepository, matriculaRepository, eventPublisher);
 
         when(alunoRepository.save(any())).thenAnswer(inv -> {
             Aluno a = inv.getArgument(0);
@@ -58,6 +65,29 @@ class AlunoServiceTest {
         assertThat(evento.nome()).isEqualTo("Maria Silva");
         assertThat(evento.email()).isEqualTo("maria@example.com");
         assertThat(evento.occurredAt()).isNotNull();
+    }
+
+    @Test
+    void naoExcluiAlunoComMatricula() {
+        Aluno aluno = new Aluno();
+        aluno.setId(1L);
+        when(alunoRepository.findById(1L)).thenReturn(Optional.of(aluno));
+        when(matriculaRepository.existsByAlunoId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> alunoService.excluir(1L)).isInstanceOf(RegraNegocioException.class);
+
+        verify(alunoRepository, never()).delete(any(Aluno.class));
+    }
+
+    @Test
+    void excluiAlunoSemMatricula() {
+        Aluno aluno = new Aluno();
+        aluno.setId(1L);
+        when(alunoRepository.findById(1L)).thenReturn(Optional.of(aluno));
+
+        alunoService.excluir(1L);
+
+        verify(alunoRepository).delete(aluno);
     }
 
     private static AlunoRequest request() {

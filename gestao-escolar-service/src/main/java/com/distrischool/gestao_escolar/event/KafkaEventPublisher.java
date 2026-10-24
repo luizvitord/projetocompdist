@@ -24,6 +24,16 @@ public class KafkaEventPublisher {
         send(KafkaTopics.STUDENT_CREATED, event.alunoId(), event);
     }
 
+    @TransactionalEventListener
+    public void on(EnrollmentCreatedEvent event) {
+        send(KafkaTopics.ENROLLMENT_CREATED, event.alunoId(), event);
+    }
+
+    @TransactionalEventListener
+    public void on(EnrollmentUpdatedEvent event) {
+        send(KafkaTopics.ENROLLMENT_UPDATED, event.alunoId(), event);
+    }
+
     private void send(String topic, Long key, Object event) {
         kafkaTemplate.send(topic, String.valueOf(key), event)
                 .whenComplete((result, ex) -> {

@@ -38,4 +38,36 @@ class EventContractTest {
         assertThat(json.get("matricula").asString()).isEqualTo("2026000001");
         assertThat(json.get("occurredAt").asString()).isEqualTo("2026-10-24T11:00:00Z");
     }
+
+    @Test
+    void enrollmentCreated() {
+        JsonNode json = serializar(KafkaTopics.ENROLLMENT_CREATED, new EnrollmentCreatedEvent(
+                4L, 1L, 12L, 2026, Instant.parse("2026-10-24T11:00:00Z")));
+
+        assertThat(json.propertyNames()).containsExactlyInAnyOrder(
+                "matriculaId", "alunoId", "turmaId", "anoLetivo", "occurredAt");
+        assertThat(json.get("matriculaId").asLong()).isEqualTo(4L);
+        assertThat(json.get("anoLetivo").asInt()).isEqualTo(2026);
+    }
+
+    @Test
+    void enrollmentUpdatedEmTransferencia() {
+        JsonNode json = serializar(KafkaTopics.ENROLLMENT_UPDATED, new EnrollmentUpdatedEvent(
+                4L, 1L, 12L, "ATIVA", "TRANSFERIDA", 15L, Instant.parse("2026-10-24T11:00:00Z")));
+
+        assertThat(json.propertyNames()).containsExactlyInAnyOrder(
+                "matriculaId", "alunoId", "turmaId", "statusAnterior", "statusNovo", "turmaDestinoId", "occurredAt");
+        assertThat(json.get("statusAnterior").asString()).isEqualTo("ATIVA");
+        assertThat(json.get("statusNovo").asString()).isEqualTo("TRANSFERIDA");
+        assertThat(json.get("turmaDestinoId").asLong()).isEqualTo(15L);
+    }
+
+    @Test
+    void enrollmentUpdatedForaDeTransferenciaTemTurmaDestinoNula() {
+        JsonNode json = serializar(KafkaTopics.ENROLLMENT_UPDATED, new EnrollmentUpdatedEvent(
+                4L, 1L, 12L, "ATIVA", "TRANCADA", null, Instant.parse("2026-10-24T11:00:00Z")));
+
+        assertThat(json.has("turmaDestinoId")).isTrue();
+        assertThat(json.get("turmaDestinoId").isNull()).isTrue();
+    }
 }

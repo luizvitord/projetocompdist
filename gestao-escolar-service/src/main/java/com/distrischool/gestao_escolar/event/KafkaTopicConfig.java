@@ -13,6 +13,16 @@ public class KafkaTopicConfig {
         return TopicBuilder.name(KafkaTopics.STUDENT_CREATED).partitions(3).replicas(1).build();
     }
 
+    @Bean
+    NewTopic enrollmentCreatedTopic() {
+        return TopicBuilder.name(KafkaTopics.ENROLLMENT_CREATED).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic enrollmentUpdatedTopic() {
+        return TopicBuilder.name(KafkaTopics.ENROLLMENT_UPDATED).partitions(3).replicas(1).build();
+    }
+
     /**
      * Mesmo número de partições do schedule.updated: o DeadLetterPublishingRecoverer publica na
      * mesma partição de origem.

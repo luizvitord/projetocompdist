@@ -1,6 +1,7 @@
 package com.distrischool.gestao_escolar.aluno;
 
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
+import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -17,6 +18,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -92,10 +94,11 @@ class AlunoControllerTest {
 
     @Test
     void listaPaginadaComFiltros() throws Exception {
-        when(alunoService.buscar(eq("maria"), eq("2026000001"), any(Pageable.class)))
+        when(alunoService.buscar(eq("maria"), eq("2026000001"), eq(12L), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(resposta()), PageRequest.of(0, 20), 1));
 
-        mockMvc.perform(get("/api/alunos").param("nome", "maria").param("matricula", "2026000001"))
+        mockMvc.perform(get("/api/alunos").param("nome", "maria").param("matricula", "2026000001")
+                        .param("turmaId", "12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].matricula").value("2026000001"))
                 .andExpect(jsonPath("$.page.totalElements").value(1));
@@ -120,6 +123,16 @@ class AlunoControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(alunoService).excluir(1L);
+    }
+
+    @Test
+    void excluirAlunoComMatriculaRetorna409() throws Exception {
+        doThrow(new RegraNegocioException("O aluno tem matrículas e não pode ser excluído"))
+                .when(alunoService).excluir(1L);
+
+        mockMvc.perform(delete("/api/alunos/1"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("O aluno tem matrículas e não pode ser excluído"));
     }
 
     private static AlunoResponse resposta() {
