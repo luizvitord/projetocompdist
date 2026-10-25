@@ -17,7 +17,7 @@ images:
     newTag: dev
   - name: api-gateway
     newName: api-gateway
-    newTag: dev
+    newTag: dev2
 
 patches:
   - target:
