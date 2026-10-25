@@ -42,6 +42,26 @@ services:
     build: ./api-gateway
     environment: { ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081, ESCOLAR_URL: http://gestao-escolar-service:8082, FRONTEND_ORIGIN: http://localhost:5173 }
     ports: ["8080:8080"]
+    depends_on: [gestao-administrativa-service, gestao-escolar-service]
+
+  gestao-administrativa-service:
+    build: ./gestao-administrativa-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres-administrativa:5432/gestao_administrativa
+      DB_USERNAME: gestao_administrativa
+      DB_PASSWORD: gestao_administrativa
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on: [postgres-administrativa, kafka]
+
+  gestao-escolar-service:
+    build: ./gestao-escolar-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres-escolar:5432/gestao_escolar
+      DB_USERNAME: gestao_escolar
+      DB_PASSWORD: gestao_escolar
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081
+    depends_on: [postgres-escolar, kafka, gestao-administrativa-service]
   frontend:
     build: ./frontend
     ports: ["5173:80"]
