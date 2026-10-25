@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
@@ -9,30 +9,35 @@ import { toPage, type Page, type SpringPagedModel } from '../../services/paginat
 
 export type Field = { name: string; label: string; type?: 'text' | 'email' | 'number' | 'date' | 'checkbox'; required?: boolean; defaultValue?: string | boolean };
 type Resource = { id: number; [key: string]: unknown };
+type Filters = Record<string, string | number | boolean>;
+const EMPTY_FILTERS: Filters = {};
 
-export function RegistryPage<T extends Resource>({ title, singular, path, columns, fields, filters = {}, toPayload }: {
-  title: string; singular: string; path: string; columns: DataTableColumn<T>[]; fields: Field[]; filters?: Record<string, string | number | boolean>; toPayload?: (form: FormData) => Record<string, unknown>;
+export function RegistryPage<T extends Resource>({ title, singular, path, columns, fields, filters = EMPTY_FILTERS, toPayload }: {
+  title: string; singular: string; path: string; columns: DataTableColumn<T>[]; fields: Field[]; filters?: Filters; toPayload?: (form: FormData) => Record<string, unknown>;
 }) {
   const [pageNumber, setPageNumber] = useState(0);
   const [page, setPage] = useState<Page<T> | null>(null);
   const [error, setError] = useState('');
   const [formError, setFormError] = useState<Record<string, string>>({});
   const [refresh, setRefresh] = useState(0);
+  const filtersKey = JSON.stringify(filters);
+  const stableFilters = useMemo(() => JSON.parse(filtersKey) as Filters, [filtersKey]);
 
   useEffect(() => {
-    api.get<SpringPagedModel<T>>(path, { query: { ...filters, page: pageNumber, size: 20 } })
+    api.get<SpringPagedModel<T>>(path, { query: { ...stableFilters, page: pageNumber, size: 20 } })
       .then((response) => { setPage(toPage(response)); setError(''); })
       .catch(() => setError(`Não foi possível carregar ${title.toLowerCase()}.`));
-  }, [filters, pageNumber, path, refresh, title]);
+  }, [pageNumber, path, refresh, stableFilters, title]);
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const payload = toPayload ? toPayload(form) : Object.fromEntries(form.entries());
     try {
       await api.post<T>(path, payload);
       setFormError({});
-      event.currentTarget.reset();
+      formElement.reset();
       setRefresh((value) => value + 1);
     } catch (reason) {
       setFormError(isApiProblem(reason) ? reason.fieldErrors : { form: 'Não foi possível salvar os dados.' });

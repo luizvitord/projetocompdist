@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router-dom';
@@ -11,6 +11,20 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe('registry flows', () => {
+  it('loads a registry only once when no filters are supplied', async () => {
+    let requests = 0;
+    server.use(http.get('/api/alunos', () => {
+      requests += 1;
+      return HttpResponse.json({ content: [], page: { size: 20, number: 0, totalElements: 0, totalPages: 0 } });
+    }));
+
+    render(<MemoryRouter><AlunosPage /></MemoryRouter>);
+
+    await screen.findByText('Nenhum aluno encontrado');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(requests).toBe(1);
+  });
+
   it('lists alunos and creates one while surfacing backend field validation', async () => {
     server.use(
       http.get('/api/alunos', () => HttpResponse.json({ content: [{ id: 1, matricula: '2026001', nome: 'Ana', email: 'ana@escola.test', telefone: '9999', dataNascimento: '2010-01-01', endereco: 'Rua A' }], page: { size: 20, number: 0, totalElements: 1, totalPages: 1 } })),
@@ -26,5 +40,28 @@ describe('registry flows', () => {
     fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'nova@escola.test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     expect(await screen.findByText('Informe o nome')).toBeVisible();
+  });
+
+  it('does not show a save error after a successful student creation', async () => {
+    let creations = 0;
+    server.use(
+      http.get('/api/alunos', () => HttpResponse.json({ content: [], page: { size: 20, number: 0, totalElements: 0, totalPages: 0 } })),
+      http.post('/api/alunos', () => {
+        creations += 1;
+        return HttpResponse.json({ id: 2, matricula: '2026002', nome: 'Nova aluna' }, { status: 201 });
+      })
+    );
+    render(<MemoryRouter><AlunosPage /></MemoryRouter>);
+    await screen.findByText('Nenhum aluno encontrado');
+    fireEvent.click(screen.getByRole('button', { name: 'Novo aluno' }));
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Nova aluna' } });
+    fireEvent.change(screen.getByLabelText('Nascimento'), { target: { value: '2011-01-01' } });
+    fireEvent.change(screen.getByLabelText('Endereço'), { target: { value: 'Rua B' } });
+    fireEvent.change(screen.getByLabelText('Telefone'), { target: { value: '8888' } });
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'nova@escola.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => expect(creations).toBe(1));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
   });
 });
