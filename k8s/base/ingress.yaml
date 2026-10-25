@@ -1,94 +1,11 @@
-# Ponto de entrada externo do cluster. Quando o API Gateway existir, as rotas
-# passam a apontar para ele em vez de ir direto aos servicos.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
-metadata:
-  name: distrischool
-  labels:
-    app.kubernetes.io/part-of: distrischool
+metadata: { name: distrischool, labels: { app.kubernetes.io/part-of: distrischool } }
 spec:
   ingressClassName: nginx
   rules:
     - http:
         paths:
-          # Somente a API; o Actuator fica acessivel apenas dentro do cluster
-          - path: /api/professores
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-administrativa-service
-                port:
-                  name: http
-          - path: /api/turmas
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-administrativa-service
-                port:
-                  name: http
-          - path: /api/disciplinas
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-administrativa-service
-                port:
-                  name: http
-          - path: /api/tecnicos
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-administrativa-service
-                port:
-                  name: http
-          - path: /api/alunos
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-escolar-service
-                port:
-                  name: http
-          - path: /api/matriculas
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-escolar-service
-                port:
-                  name: http
-          - path: /api/frequencias
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-escolar-service
-                port:
-                  name: http
-          - path: /api/avaliacoes
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-escolar-service
-                port:
-                  name: http
-          - path: /api/notas
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-escolar-service
-                port:
-                  name: http
-          # Documentacao da API (Swagger UI e OpenAPI) sob o prefixo do servico:
-          # /administrativa/swagger-ui.html e /administrativa/v3/api-docs
-          - path: /administrativa
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-administrativa-service
-                port:
-                  name: http
-          # /escolar/swagger-ui.html e /escolar/v3/api-docs
-          - path: /escolar
-            pathType: Prefix
-            backend:
-              service:
-                name: gestao-escolar-service
-                port:
-                  name: http
+          - { path: /api, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
+          - { path: /administrativa, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
+          - { path: /escolar, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }

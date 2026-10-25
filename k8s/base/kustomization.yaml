@@ -17,6 +17,9 @@ resources:
   - gestao-escolar-service/service.yaml
   - gestao-escolar-service/deployment.yaml
   - gestao-escolar-service/hpa.yaml
+  - api-gateway/service.yaml
+  - api-gateway/deployment.yaml
+  - api-gateway/hpa.yaml
   - ingress.yaml
 
 # Configuracao nao sensivel do gestao-administrativa-service (lida via envFrom).
@@ -40,3 +43,9 @@ configMapGenerator:
       # Fallback sincrono para turmas que ainda nao chegaram a replica local
       - ADMINISTRATIVA_URL=http://gestao-administrativa-service:8081
       - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
+  - name: api-gateway-config
+    literals:
+      - SERVER_PORT=8080
+      - ADMINISTRATIVA_URL=http://gestao-administrativa-service:8081
+      - ESCOLAR_URL=http://gestao-escolar-service:8082
+      - FRONTEND_ORIGIN=http://localhost:5173

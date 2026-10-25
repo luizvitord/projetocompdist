@@ -15,6 +15,9 @@ images:
   - name: gestao-escolar-service
     newName: gestao-escolar-service
     newTag: dev
+  - name: api-gateway
+    newName: api-gateway
+    newTag: dev2
 
 patches:
   - target:
