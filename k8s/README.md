@@ -1,7 +1,7 @@
 # Kubernetes — DistriSchool
 
-Manifests para implantar o `gestao-administrativa-service`, o `gestao-escolar-service` e a
-infraestrutura deles (um PostgreSQL por serviço e o Kafka) no Kubernetes. Os arquivos são organizados com [Kustomize](https://kustomize.io/), que já vem
+Manifests para implantar o `gestao-administrativa-service`, o `gestao-escolar-service`, o
+`usuarios-service`, o `api-gateway` e a infraestrutura deles (um PostgreSQL por serviço e o Kafka) no Kubernetes. Os arquivos são organizados com [Kustomize](https://kustomize.io/), que já vem
 embutido no `kubectl`:
 
 ```
@@ -11,14 +11,17 @@ k8s/
 │   ├── ingress.yaml             # entrada externa (/api/...)
 │   ├── postgres-administrativa/ # StatefulSet + Service (volume persistente)
 │   ├── postgres-escolar/        # StatefulSet + Service (volume persistente)
+│   ├── postgres-usuarios/       # StatefulSet + Service (volume persistente)
 │   ├── kafka/                   # StatefulSet + Service (KRaft, 1 nó)
 │   ├── gestao-administrativa-service/ # Deployment + Service + HPA
-│   └── gestao-escolar-service/  # Deployment + Service + HPA
+│   ├── gestao-escolar-service/  # Deployment + Service + HPA
+│   ├── usuarios-service/        # Deployment + Service + HPA (login e JWT)
+│   └── api-gateway/             # Deployment + Service + HPA (valida o JWT)
 └── overlays/
     └── minikube/                # desenvolvimento local: imagens locais + Secrets de dev
 ```
 
-Novos serviços (usuários, API Gateway, notificações...) entram como novas pastas em
+Novos serviços (notificações, relatórios...) entram como novas pastas em
 `base/`, e um ambiente de nuvem (EKS/AKS) entra como um novo overlay.
 
 ## O que cada recurso demonstra
@@ -30,7 +33,8 @@ Novos serviços (usuários, API Gateway, notificações...) entram como novas pa
 | Escalabilidade horizontal | 2 réplicas iniciais por serviço + `HorizontalPodAutoscaler` (2 a 5 pods, CPU em 70%) |
 | Health checks (Actuator) | `startupProbe`/`livenessProbe` em `/actuator/health/liveness`, `readinessProbe` em `/actuator/health/readiness` (inclui o banco) |
 | Tolerância a falhas | Pods com falha são recriados; rolling update sem indisponibilidade (`maxUnavailable: 0`); desligamento gracioso; o `gestao-escolar-service` mantém uma réplica local das turmas e usa retry + circuit breaker (Resilience4j) no fallback síncrono |
-| Configuração de ambientes | ConfigMaps (`gestao-administrativa-config`, `gestao-escolar-config`) e Secrets (`postgres-administrativa-credentials`, `postgres-escolar-credentials`) |
+| Configuração de ambientes | ConfigMaps (`gestao-administrativa-config`, `gestao-escolar-config`, `usuarios-config`, `api-gateway-config`) e Secrets (credenciais de cada Postgres e `jwt-secret`) |
+| Autenticação (JWT) | `usuarios-service` emite o token no login; o `api-gateway` valida e aplica as regras por perfil. Os dois leem o mesmo Secret `jwt-secret` ([detalhes](../docs/AUTENTICACAO.md)) |
 | Monitoramento (preparação) | `/actuator/prometheus` exposto e anotações `prometheus.io/*` nos pods |
 | Logs centralizados (preparação) | Logs em JSON (formato ECS), prontos para o ELK |
 
@@ -55,6 +59,8 @@ minikube addons enable metrics-server
 # 3. Constrói as imagens direto dentro do minikube (não precisa de registry)
 minikube image build -t gestao-administrativa-service:dev gestao-administrativa-service
 minikube image build -t gestao-escolar-service:dev gestao-escolar-service
+minikube image build -t usuarios-service:dev usuarios-service
+minikube image build -t api-gateway:dev2 api-gateway
 
 # 4. Aplica todos os manifests
 kubectl apply -k k8s/overlays/minikube
@@ -84,6 +90,11 @@ A API fica disponível em:
 - `gestao-escolar-service`: `http://127.0.0.1/api/alunos` (inclui `/api/alunos/{id}/boletim`),
   `/api/matriculas`, `/api/frequencias`, `/api/avaliacoes` e `/api/notas`; Swagger em
   `http://127.0.0.1/escolar/swagger-ui.html`
+- `usuarios-service`: `http://127.0.0.1/api/auth/login` e `/api/usuarios`; Swagger em
+  `http://127.0.0.1/usuarios/swagger-ui.html`
+
+Tudo passa pelo `api-gateway`, que exige o token do login (`Authorization: Bearer ...`) em todas as
+rotas `/api`, exceto o próprio login. Veja os exemplos com `curl` em [docs/AUTENTICACAO.md](../docs/AUTENTICACAO.md).
 
 **Opção 2: port-forward** (direto no Service, sem Ingress):
 

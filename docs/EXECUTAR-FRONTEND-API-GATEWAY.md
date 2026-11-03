@@ -13,9 +13,11 @@ API Gateway (8080)
         +--> gestao-administrativa-service (8081)
         |
         +--> gestao-escolar-service (8082)
+        |
+        +--> usuarios-service (8083)
 ```
 
-O navegador deve acessar somente o API Gateway. As portas `8081` e `8082` são usadas pelos serviços internos e não devem ser configuradas diretamente no frontend.
+O navegador deve acessar somente o API Gateway. As portas `8081`, `8082` e `8083` são usadas pelos serviços internos e não devem ser configuradas diretamente no frontend.
 
 ## Pré-requisitos
 
@@ -65,10 +67,10 @@ cd /home/janylson/Documentos/GITHUB/projetocompdist/api-gateway
 ./mvnw spring-boot:run
 ```
 
-Se o serviço administrativo estiver usando a porta `8083` em vez de `8081`, inicie o gateway assim:
+Se algum serviço estiver em outra porta, informe a URL ao gateway (`ADMINISTRATIVA_URL`, `ESCOLAR_URL` ou `USUARIOS_URL`), por exemplo:
 
 ```bash
-ADMINISTRATIVA_URL=http://localhost:8083 ./mvnw spring-boot:run
+ADMINISTRATIVA_URL=http://localhost:8091 ./mvnw spring-boot:run
 ```
 
 Por fim, execute o frontend:
@@ -79,7 +81,7 @@ npm install
 npm run dev
 ```
 
-O Vite executa em <http://localhost:5173> e encaminha `/api`, `/escolar` e `/administrativa` para <http://localhost:8080>.
+O Vite executa em <http://localhost:5173> e encaminha `/api`, `/escolar`, `/administrativa` e `/usuarios` para <http://localhost:8080>.
 
 ## Opção 3: frontend local conectado aos pods Kubernetes
 
@@ -133,16 +135,16 @@ http://localhost:5173/api
         -> pods dos microsserviços
 ```
 
-## Login demonstrativo
+## Login
 
-O login atual é apenas visual e não usa o serviço de autenticação:
+O login chama o `usuarios-service` pelo gateway e recebe um JWT, que o frontend envia em todas as requisições. O administrador inicial é criado pela migration:
 
 ```text
 E-mail: coordenacao@distrischool.com
 Senha: 123456
 ```
 
-A sessão é armazenada somente no `sessionStorage` do navegador. Essas credenciais não devem ser usadas como mecanismo de segurança em produção.
+O token fica no `sessionStorage` (some ao fechar a aba) e expira em 8 horas; depois disso, ou se o gateway responder `401`, o frontend volta para a tela de login. Perfis e permissões: [AUTENTICACAO.md](AUTENTICACAO.md).
 
 ## Verificações rápidas
 
@@ -152,10 +154,12 @@ Health check do gateway:
 curl http://localhost:8080/actuator/health
 ```
 
-Listagem escolar passando pelo gateway:
+Listagem escolar passando pelo gateway (sem token o gateway responde `401`):
 
 ```bash
-curl http://localhost:8080/api/alunos
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"email": "coordenacao@distrischool.com", "senha": "123456"}' | sed 's/.*"token":"\([^"]*\)".*/\1/')
+curl http://localhost:8080/api/alunos -H "Authorization: Bearer $TOKEN"
 ```
 
 Testes do frontend:
@@ -201,7 +205,7 @@ docker image prune
 
 ## Observações sobre Kubernetes
 
-Os manifests Kubernetes atuais implantam os dois microsserviços, bancos, Kafka e o API Gateway. O frontend ainda é executado pelo Vite ou pelo Docker Compose; não existe um Deployment Kubernetes para o frontend nesta etapa.
+Os manifests Kubernetes atuais implantam os três microsserviços, bancos, Kafka e o API Gateway. O frontend ainda é executado pelo Vite ou pelo Docker Compose; não existe um Deployment Kubernetes para o frontend nesta etapa.
 
 O HPA está configurado, mas precisa do `metrics-server` habilitado para coletar métricas de CPU:
 
