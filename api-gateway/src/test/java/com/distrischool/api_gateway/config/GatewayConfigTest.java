@@ -29,6 +29,7 @@ class GatewayConfigTest {
 
     private static HttpServer escolar;
     private static HttpServer administrativa;
+    private static HttpServer usuarios;
 
     @LocalServerPort
     private int port;
@@ -47,18 +48,25 @@ class GatewayConfigTest {
         administrativa.createContext("/api/turmas", exchange -> respond(exchange, 200,
                 exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getQuery()));
         administrativa.start();
+
+        usuarios = upstream();
+        usuarios.createContext("/api/auth/login", exchange -> respond(exchange, 200,
+                exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath()));
+        usuarios.start();
     }
 
     @AfterAll
     static void stopUpstreams() {
         escolar.stop(0);
         administrativa.stop(0);
+        usuarios.stop(0);
     }
 
     @DynamicPropertySource
     static void gatewayUrls(DynamicPropertyRegistry registry) {
         registry.add("gateway.escolar-url", () -> url(escolar));
         registry.add("gateway.administrativa-url", () -> url(administrativa));
+        registry.add("gateway.usuarios-url", () -> url(usuarios));
         registry.add("gateway.allowed-origin", () -> "http://localhost:5173");
     }
 
@@ -76,6 +84,15 @@ class GatewayConfigTest {
 
         assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
         assertThat(response.body()).isEqualTo("/api/turmas?page=1");
+    }
+
+    @Test
+    void routesLoginToUsuarios() throws Exception {
+        HttpResponse<String> response = request("/api/auth/login", builder -> builder
+                .POST(HttpRequest.BodyPublishers.ofString("{}")));
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.body()).isEqualTo("POST /api/auth/login");
     }
 
     @Test

@@ -41,6 +41,16 @@ public class GatewayConfig {
     }
 
     @Bean
+    RouterFunction<ServerResponse> usuariosRoutes(GatewayRoutesProperties properties) {
+        return route("usuarios")
+                .route(path("/api/auth/**")
+                                .or(path("/api/usuarios/**"))
+                                .or(path("/usuarios/**")), http())
+                .before(uri(properties.usuariosUrl()))
+                .build();
+    }
+
+    @Bean
     WebMvcConfigurer corsConfigurer(GatewayRoutesProperties properties) {
         return new WebMvcConfigurer() {
             @Override
