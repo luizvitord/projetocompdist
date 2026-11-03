@@ -2,8 +2,6 @@ package com.distrischool.api_gateway.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.function.RouterFunction;
 import org.springframework.web.servlet.function.ServerResponse;
 
@@ -48,18 +46,5 @@ public class GatewayConfig {
                                 .or(path("/usuarios/**")), http())
                 .before(uri(properties.usuariosUrl()))
                 .build();
-    }
-
-    @Bean
-    WebMvcConfigurer corsConfigurer(GatewayRoutesProperties properties) {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .allowedOrigins(properties.allowedOrigin())
-                        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                        .allowedHeaders("*");
-            }
-        };
     }
 }

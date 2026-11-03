@@ -127,7 +127,8 @@ class GatewayConfigTest {
 
     private HttpResponse<String> request(String path, java.util.function.Function<HttpRequest.Builder, HttpRequest.Builder> method)
             throws Exception {
-        HttpRequest request = method.apply(HttpRequest.newBuilder(URI.create(url(path)))).build();
+        HttpRequest request = method.apply(HttpRequest.newBuilder(URI.create(url(path)))
+                .header(HttpHeaders.AUTHORIZATION, TestTokens.bearer("ADMIN"))).build();
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
