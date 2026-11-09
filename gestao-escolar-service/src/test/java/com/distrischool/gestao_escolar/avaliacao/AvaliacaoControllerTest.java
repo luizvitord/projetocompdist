@@ -133,22 +133,22 @@ class AvaliacaoControllerTest {
 
         mockMvc.perform(post("/api/avaliacoes/9/notas")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"matriculaId\": 4, \"valor\": 8.5}]"))
+                        .content("[{\"matriculaAluno\": \"2026000004\", \"valor\": 8.5}]"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$[0].id").value(100))
                 .andExpect(jsonPath("$[0].valor").value(8.50));
 
-        verify(notaService).lancar(9L, List.of(new LancamentoNotaRequest(4L, new BigDecimal("8.5"))));
+        verify(notaService).lancar(9L, List.of(new LancamentoNotaRequest("2026000004", new BigDecimal("8.5"))));
     }
 
     @Test
     void lancamentoValidaCadaItemNoMesmoFormatoDeErros() throws Exception {
         mockMvc.perform(post("/api/avaliacoes/9/notas")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"matriculaId\": 4, \"valor\": 8.5}, {\"matriculaId\": 5, \"valor\": -1}, {\"valor\": 7}]"))
+                        .content("[{\"matriculaAluno\": \"2026000004\", \"valor\": 8.5}, {\"matriculaAluno\": \"2026000005\", \"valor\": -1}, {\"valor\": 7}]"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erros['notas[1].valor']").exists())
-                .andExpect(jsonPath("$.erros['notas[2].matriculaId']").exists());
+                .andExpect(jsonPath("$.erros['notas[2].matriculaAluno']").exists());
 
         mockMvc.perform(post("/api/avaliacoes/9/notas").contentType(MediaType.APPLICATION_JSON).content("[]"))
                 .andExpect(status().isBadRequest())
@@ -164,7 +164,7 @@ class AvaliacaoControllerTest {
 
         mockMvc.perform(post("/api/avaliacoes/9/notas")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"matriculaId\": 4, \"valor\": 8.5}]"))
+                        .content("[{\"matriculaAluno\": \"2026000004\", \"valor\": 8.5}]"))
                 .andExpect(status().isConflict());
     }
 
