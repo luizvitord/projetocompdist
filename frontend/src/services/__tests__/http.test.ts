@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { api } from '../http';
+import { clearSession, saveSession } from '../session';
 
 const server = setupServer();
 
@@ -14,6 +15,24 @@ describe('gateway API client', () => {
     server.use(http.get('/api/alunos', () => HttpResponse.json({ content: [{ id: 7, nome: 'Ana' }], page: { size: 10, number: 0, totalElements: 1, totalPages: 1 } })));
 
     await expect(api.get<{ content: { id: number; nome: string }[] }>('/alunos')).resolves.toEqual(expect.objectContaining({ content: [{ id: 7, nome: 'Ana' }] }));
+  });
+
+  it('sends the session token as a bearer header', async () => {
+    saveSession({
+      token: 'jwt-token',
+      expiraEm: new Date(Date.now() + 60_000).toISOString(),
+      usuario: { id: 1, nome: 'Coordenação', email: 'coordenacao@distrischool.com', perfil: 'ADMIN', referenciaId: null }
+    });
+    let authorization: string | null = null;
+    server.use(http.get('/api/turmas', ({ request }) => {
+      authorization = request.headers.get('Authorization');
+      return HttpResponse.json({});
+    }));
+
+    await api.get('/turmas');
+
+    expect(authorization).toBe('Bearer jwt-token');
+    clearSession();
   });
 
   it('throws a 409 ApiProblem without changing caller state', async () => {

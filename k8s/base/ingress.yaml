@@ -9,3 +9,4 @@ spec:
           - { path: /api, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
           - { path: /administrativa, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
           - { path: /escolar, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
+          - { path: /usuarios, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }

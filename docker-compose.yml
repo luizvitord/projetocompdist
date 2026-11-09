@@ -1,4 +1,4 @@
-# Infraestrutura local para desenvolvimento do gestao-administrativa-service e do gestao-escolar-service
+# Infraestrutura local para desenvolvimento do gestao-administrativa-service, do gestao-escolar-service e do usuarios-service
 services:
   postgres-administrativa:
     image: postgres:17
@@ -22,6 +22,17 @@ services:
     volumes:
       - postgres-escolar-data:/var/lib/postgresql/data
 
+  postgres-usuarios:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: usuarios
+      POSTGRES_USER: usuarios
+      POSTGRES_PASSWORD: usuarios
+    ports:
+      - "15434:5432"
+    volumes:
+      - postgres-usuarios-data:/var/lib/postgresql/data
+
   kafka:
     image: apache/kafka:4.1.0
     ports:
@@ -40,9 +51,24 @@ services:
 
   api-gateway:
     build: ./api-gateway
-    environment: { ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081, ESCOLAR_URL: http://gestao-escolar-service:8082, FRONTEND_ORIGIN: http://localhost:5173 }
+    environment:
+      ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081
+      ESCOLAR_URL: http://gestao-escolar-service:8082
+      USUARIOS_URL: http://usuarios-service:8083
+      FRONTEND_ORIGIN: http://localhost:5173
+      # Mesmo segredo do usuarios-service: o gateway valida os tokens que ele assina
+      JWT_SECRET: distrischool-segredo-de-desenvolvimento-local
     ports: ["8080:8080"]
-    depends_on: [gestao-administrativa-service, gestao-escolar-service]
+    depends_on: [gestao-administrativa-service, gestao-escolar-service, usuarios-service]
+
+  usuarios-service:
+    build: ./usuarios-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres-usuarios:5432/usuarios
+      DB_USERNAME: usuarios
+      DB_PASSWORD: usuarios
+      JWT_SECRET: distrischool-segredo-de-desenvolvimento-local
+    depends_on: [postgres-usuarios]
 
   gestao-administrativa-service:
     build: ./gestao-administrativa-service
@@ -70,3 +96,4 @@ services:
 volumes:
   postgres-administrativa-data:
   postgres-escolar-data:
+  postgres-usuarios-data:

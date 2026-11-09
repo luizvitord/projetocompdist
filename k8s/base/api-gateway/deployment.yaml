@@ -13,6 +13,9 @@ spec:
           image: api-gateway
           ports: [{ name: http, containerPort: 8080 }]
           envFrom: [{ configMapRef: { name: api-gateway-config } }]
+          # Mesmo segredo do usuarios-service, para validar os tokens que ele assina
+          env:
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: jwt-secret, key: JWT_SECRET } } }
           readinessProbe: { httpGet: { path: /actuator/health/readiness, port: http }, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health/liveness, port: http }, periodSeconds: 10 }
           resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 512Mi } }
