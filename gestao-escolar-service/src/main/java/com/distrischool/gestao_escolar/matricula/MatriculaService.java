@@ -1,6 +1,7 @@
 package com.distrischool.gestao_escolar.matricula;
 
 import com.distrischool.gestao_escolar.aluno.AlunoService;
+import com.distrischool.gestao_escolar.aluno.Aluno;
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.common.ValidacaoException;
@@ -51,21 +52,21 @@ public class MatriculaService {
     }
 
     public MatriculaResponse criar(MatriculaRequest request) {
-        alunoService.obter(request.alunoId());
+        Aluno aluno = alunoService.obterPorMatricula(request.matriculaAluno());
         turmaReplicaService.garantirNaReplica(request.turmaId());
         return transactionTemplate.execute(status -> {
             // O bloqueio na turma serializa matrículas simultâneas disputando a última vaga
             TurmaReplica turma = turmaReplicaService.obterComBloqueio(request.turmaId());
             verificarTurmaDisponivel(turma);
             if (matriculaRepository.existsByAlunoIdAndAnoLetivoAndStatusIn(
-                    request.alunoId(), turma.getAnoLetivo(), StatusMatricula.VIGENTES)) {
+                    aluno.getId(), turma.getAnoLetivo(), StatusMatricula.VIGENTES)) {
                 throw new RegraNegocioException(JA_VIGENTE + turma.getAnoLetivo());
             }
             verificarVaga(turma);
 
-            Matricula matricula = salvar(nova(request.alunoId(), turma, null), turma.getAnoLetivo());
+            Matricula matricula = salvar(nova(aluno.getId(), turma, null), turma.getAnoLetivo());
             publicarCriada(matricula);
-            return MatriculaResponse.from(matricula);
+            return resposta(matricula, aluno);
         });
     }
 
@@ -85,12 +86,12 @@ public class MatriculaService {
         if (status != null) {
             spec = spec.and(MatriculaSpecifications.statusIgual(status));
         }
-        return matriculaRepository.findAll(spec, pageable).map(MatriculaResponse::from);
+        return matriculaRepository.findAll(spec, pageable).map(this::resposta);
     }
 
     @Transactional(readOnly = true)
     public MatriculaResponse buscarPorId(Long id) {
-        return MatriculaResponse.from(obter(id));
+        return resposta(obter(id));
     }
 
     /**
@@ -124,7 +125,7 @@ public class MatriculaService {
 
             eventPublisher.publishEvent(new EnrollmentUpdatedEvent(matricula.getId(), matricula.getAlunoId(),
                     matricula.getTurmaId(), anterior.name(), novo.name(), null, Instant.now()));
-            return MatriculaResponse.from(matricula);
+            return resposta(matricula);
         });
     }
 
@@ -162,7 +163,7 @@ public class MatriculaService {
                     origem.getTurmaId(), StatusMatricula.ATIVA.name(), StatusMatricula.TRANSFERIDA.name(),
                     destino.getId(), Instant.now()));
             publicarCriada(nova);
-            return MatriculaResponse.from(nova);
+            return resposta(nova);
         });
     }
 
@@ -226,5 +227,14 @@ public class MatriculaService {
     private void publicarCriada(Matricula matricula) {
         eventPublisher.publishEvent(new EnrollmentCreatedEvent(matricula.getId(), matricula.getAlunoId(),
                 matricula.getTurmaId(), matricula.getAnoLetivo(), Instant.now()));
+    }
+
+    private MatriculaResponse resposta(Matricula matricula) {
+        Aluno aluno = alunoService.obter(matricula.getAlunoId());
+        return resposta(matricula, aluno);
+    }
+
+    private static MatriculaResponse resposta(Matricula matricula, Aluno aluno) {
+        return MatriculaResponse.from(matricula, aluno.getMatricula(), aluno.getNome());
     }
 }
