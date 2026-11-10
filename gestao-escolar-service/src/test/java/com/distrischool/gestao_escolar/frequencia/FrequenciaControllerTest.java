@@ -38,8 +38,8 @@ class FrequenciaControllerTest {
 
     private static final String CHAMADA = """
             {"turmaId": 12, "disciplinaId": 3, "data": "2026-10-20", "professorId": 7,
-             "registros": [{"matriculaId": 41, "status": "PRESENTE"},
-                           {"matriculaId": 42, "status": "FALTA", "observacao": "atestado"}]}
+             "registros": [{"matriculaAluno": "2026000041", "status": "PRESENTE"},
+                           {"matriculaAluno": "2026000042", "status": "FALTA", "observacao": "atestado"}]}
             """;
 
     @Autowired
@@ -84,7 +84,7 @@ class FrequenciaControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"turmaId": 12, "disciplinaId": 3, "data": "2026-10-20",
-                                 "registros": [{"matriculaId": 41}]}
+                                 "registros": [{"matriculaAluno": "2026000041"}]}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.erros['registros[0].status']").exists());

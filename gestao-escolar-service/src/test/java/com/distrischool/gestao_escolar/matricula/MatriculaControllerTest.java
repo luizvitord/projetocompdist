@@ -47,12 +47,12 @@ class MatriculaControllerTest {
 
     @Test
     void criaMatriculaERetorna201ComLocation() throws Exception {
-        when(matriculaService.criar(new MatriculaRequest(1L, 12L)))
+        when(matriculaService.criar(new MatriculaRequest("2026000001", 12L)))
                 .thenReturn(resposta(4L, 12L, StatusMatricula.ATIVA, null));
 
         mockMvc.perform(post("/api/matriculas")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"alunoId\": 1, \"turmaId\": 12}"))
+                        .content("{\"matriculaAluno\": \"2026000001\", \"turmaId\": 12}"))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "http://localhost/api/matriculas/4"))
                 .andExpect(jsonPath("$.status").value("ATIVA"))
@@ -65,7 +65,7 @@ class MatriculaControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.erros.alunoId").exists())
+                .andExpect(jsonPath("$.erros.matriculaAluno").exists())
                 .andExpect(jsonPath("$.erros.turmaId").exists());
 
         verify(matriculaService, never()).criar(any());
@@ -77,7 +77,7 @@ class MatriculaControllerTest {
 
         mockMvc.perform(post("/api/matriculas")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"alunoId\": 1, \"turmaId\": 12}"))
+                        .content("{\"matriculaAluno\": \"2026000001\", \"turmaId\": 12}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("A turma 9A-2026 não tem vagas (capacidade 35)"));
     }
@@ -89,7 +89,7 @@ class MatriculaControllerTest {
 
         mockMvc.perform(post("/api/matriculas")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"alunoId\": 1, \"turmaId\": 20}"))
+                        .content("{\"matriculaAluno\": \"2026000001\", \"turmaId\": 20}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().string("Content-Type", "application/problem+json"))
                 .andExpect(jsonPath("$.status").value(503))

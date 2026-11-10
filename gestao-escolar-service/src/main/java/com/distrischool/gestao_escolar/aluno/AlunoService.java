@@ -78,6 +78,12 @@ public class AlunoService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Aluno", id));
     }
 
+    public Aluno obterPorMatricula(String matricula) {
+        String numero = matricula == null ? "" : matricula.trim();
+        return alunoRepository.findByMatricula(numero)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Aluno", numero));
+    }
+
     private String gerarMatricula() {
         long sequencial = alunoRepository.nextMatriculaSequence();
         return "%d%06d".formatted(Year.now().getValue(), sequencial);

@@ -1,6 +1,7 @@
 package com.distrischool.gestao_escolar.matricula;
 
 import com.distrischool.gestao_escolar.aluno.AlunoService;
+import com.distrischool.gestao_escolar.aluno.Aluno;
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.common.ServicoIndisponivelException;
@@ -73,6 +74,20 @@ class MatriculaServiceTest {
                 .thenAnswer(inv -> matriculas.values().stream().anyMatch(m ->
                         m.getAlunoId().equals(inv.getArgument(0)) && m.getAnoLetivo().equals(inv.getArgument(1))
                                 && inv.<java.util.Collection<?>>getArgument(2).contains(m.getStatus())));
+        when(alunoService.obterPorMatricula("2026000001")).thenAnswer(inv -> {
+            Aluno aluno = new Aluno();
+            aluno.setId(1L);
+            aluno.setMatricula("2026000001");
+            aluno.setNome("Aluno de teste");
+            return aluno;
+        });
+        when(alunoService.obter(anyLong())).thenAnswer(inv -> {
+            Aluno aluno = new Aluno();
+            aluno.setId(inv.getArgument(0));
+            aluno.setMatricula("2026000001");
+            aluno.setNome("Aluno de teste");
+            return aluno;
+        });
 
         turma9A = turma(12L, "9A-2026", 2026, 2);
         turma9B = turma(15L, "9B-2026", 2026, 30);
@@ -111,7 +126,7 @@ class MatriculaServiceTest {
 
     @Test
     void criaMatriculaAtivaCopiandoOAnoLetivoDaTurma() {
-        MatriculaResponse resposta = service.criar(new MatriculaRequest(1L, 12L));
+        MatriculaResponse resposta = service.criar(new MatriculaRequest("2026000001", 12L));
 
         assertThat(resposta.alunoId()).isEqualTo(1L);
         assertThat(resposta.turmaId()).isEqualTo(12L);
@@ -122,8 +137,23 @@ class MatriculaServiceTest {
     }
 
     @Test
+    void criaMatriculaPelaMatriculaInstitucionalERetornaDadosDoAluno() {
+        Aluno aluno = new Aluno();
+        aluno.setId(1L);
+        aluno.setMatricula("2026000001");
+        aluno.setNome("Gabriel Silva");
+        when(alunoService.obterPorMatricula("2026000001")).thenReturn(aluno);
+
+        MatriculaResponse resposta = service.criar(new MatriculaRequest("2026000001", 12L));
+
+        assertThat(resposta.matriculaAluno()).isEqualTo("2026000001");
+        assertThat(resposta.alunoNome()).isEqualTo("Gabriel Silva");
+        assertThat(resposta.alunoId()).isEqualTo(1L);
+    }
+
+    @Test
     void criarPublicaEnrollmentCreated() {
-        MatriculaResponse resposta = service.criar(new MatriculaRequest(1L, 12L));
+        MatriculaResponse resposta = service.criar(new MatriculaRequest("2026000001", 12L));
 
         EnrollmentCreatedEvent evento = unico(EnrollmentCreatedEvent.class);
         assertThat(evento.matriculaId()).isEqualTo(resposta.id());
@@ -135,7 +165,7 @@ class MatriculaServiceTest {
 
     @Test
     void garanteATurmaNaReplicaAntesDeBloquear() {
-        service.criar(new MatriculaRequest(1L, 12L));
+        service.criar(new MatriculaRequest("2026000001", 12L));
 
         InOrder ordem = inOrder(turmaReplicaService);
         ordem.verify(turmaReplicaService).garantirNaReplica(12L);
@@ -144,9 +174,10 @@ class MatriculaServiceTest {
 
     @Test
     void alunoInexistenteRetorna404() {
-        when(alunoService.obter(99L)).thenThrow(new RecursoNaoEncontradoException("Aluno", 99L));
+        when(alunoService.obterPorMatricula("2026000099"))
+                .thenThrow(new RecursoNaoEncontradoException("Aluno", "2026000099"));
 
-        assertThatThrownBy(() -> service.criar(new MatriculaRequest(99L, 12L)))
+        assertThatThrownBy(() -> service.criar(new MatriculaRequest("2026000099", 12L)))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
         verify(turmaReplicaService, never()).garantirNaReplica(any());
     }
@@ -155,7 +186,7 @@ class MatriculaServiceTest {
     void turmaForaDaReplicaComOutroServicoForaDoArRetorna503() {
         doThrow(new ServicoIndisponivelException("fora do ar", null)).when(turmaReplicaService).garantirNaReplica(20L);
 
-        assertThatThrownBy(() -> service.criar(new MatriculaRequest(1L, 20L)))
+        assertThatThrownBy(() -> service.criar(new MatriculaRequest("2026000001", 20L)))
                 .isInstanceOf(ServicoIndisponivelException.class);
         assertThat(matriculas).isEmpty();
     }
@@ -164,7 +195,7 @@ class MatriculaServiceTest {
     void turmaRemovidaNaoAceitaMatricula() {
         turma9A.setRemovida(true);
 
-        assertThatThrownBy(() -> service.criar(new MatriculaRequest(1L, 12L)))
+        assertThatThrownBy(() -> service.criar(new MatriculaRequest("2026000001", 12L)))
                 .isInstanceOf(RegraNegocioException.class)
                 .hasMessageContaining("removida");
     }
@@ -173,7 +204,7 @@ class MatriculaServiceTest {
     void alunoComMatriculaAtivaNoAnoNaoPodeSeMatricularDeNovo() {
         existente(1L, turma9B, StatusMatricula.ATIVA);
 
-        assertThatThrownBy(() -> service.criar(new MatriculaRequest(1L, 12L)))
+        assertThatThrownBy(() -> service.criar(new MatriculaRequest("2026000001", 12L)))
                 .isInstanceOf(RegraNegocioException.class)
                 .hasMessageContaining("2026");
     }
@@ -182,7 +213,7 @@ class MatriculaServiceTest {
     void alunoComMatriculaTrancadaNoAnoNaoPodeSeMatricularDeNovo() {
         existente(1L, turma9B, StatusMatricula.TRANCADA);
 
-        assertThatThrownBy(() -> service.criar(new MatriculaRequest(1L, 12L)))
+        assertThatThrownBy(() -> service.criar(new MatriculaRequest("2026000001", 12L)))
                 .isInstanceOf(RegraNegocioException.class);
     }
 
@@ -190,7 +221,7 @@ class MatriculaServiceTest {
     void matriculaCanceladaNoAnoNaoImpedeNovaMatricula() {
         existente(1L, turma9B, StatusMatricula.CANCELADA);
 
-        assertThat(service.criar(new MatriculaRequest(1L, 12L)).status()).isEqualTo(StatusMatricula.ATIVA);
+        assertThat(service.criar(new MatriculaRequest("2026000001", 12L)).status()).isEqualTo(StatusMatricula.ATIVA);
     }
 
     @Test
@@ -198,7 +229,7 @@ class MatriculaServiceTest {
         existente(2L, turma9A, StatusMatricula.ATIVA);
         existente(3L, turma9A, StatusMatricula.ATIVA);
 
-        assertThatThrownBy(() -> service.criar(new MatriculaRequest(1L, 12L)))
+        assertThatThrownBy(() -> service.criar(new MatriculaRequest("2026000001", 12L)))
                 .isInstanceOf(RegraNegocioException.class)
                 .hasMessageContaining("vagas");
     }
@@ -208,7 +239,7 @@ class MatriculaServiceTest {
         existente(2L, turma9A, StatusMatricula.ATIVA);
         existente(3L, turma9A, StatusMatricula.TRANCADA);
 
-        assertThat(service.criar(new MatriculaRequest(1L, 12L)).status()).isEqualTo(StatusMatricula.ATIVA);
+        assertThat(service.criar(new MatriculaRequest("2026000001", 12L)).status()).isEqualTo(StatusMatricula.ATIVA);
     }
 
     @Test
@@ -218,7 +249,7 @@ class MatriculaServiceTest {
             existente(aluno, turma9A, StatusMatricula.ATIVA);
         }
 
-        assertThat(service.criar(new MatriculaRequest(1L, 12L)).status()).isEqualTo(StatusMatricula.ATIVA);
+        assertThat(service.criar(new MatriculaRequest("2026000001", 12L)).status()).isEqualTo(StatusMatricula.ATIVA);
     }
 
     @Test
@@ -226,7 +257,7 @@ class MatriculaServiceTest {
         doThrow(new DataIntegrityViolationException("uk_matricula_aluno_ano_vigente"))
                 .when(matriculaRepository).saveAndFlush(any());
 
-        assertThatThrownBy(() -> service.criar(new MatriculaRequest(1L, 12L)))
+        assertThatThrownBy(() -> service.criar(new MatriculaRequest("2026000001", 12L)))
                 .isInstanceOf(RegraNegocioException.class);
         verify(eventPublisher, never()).publishEvent(any());
     }

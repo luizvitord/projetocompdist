@@ -3,6 +3,8 @@ package com.distrischool.gestao_escolar.avaliacao;
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.common.ValidacaoException;
+import com.distrischool.gestao_escolar.aluno.Aluno;
+import com.distrischool.gestao_escolar.aluno.AlunoService;
 import com.distrischool.gestao_escolar.event.GradePostedEvent;
 import com.distrischool.gestao_escolar.matricula.Matricula;
 import com.distrischool.gestao_escolar.matricula.MatriculaRepository;
@@ -36,6 +38,7 @@ class NotaServiceTest {
     private NotaRepository notaRepository;
     private NotaHistoricoRepository historicoRepository;
     private MatriculaRepository matriculaRepository;
+    private AlunoService alunoService;
     private ApplicationEventPublisher eventPublisher;
     private NotaService service;
 
@@ -47,8 +50,9 @@ class NotaServiceTest {
         historicoRepository = mock(NotaHistoricoRepository.class);
         AvaliacaoService avaliacaoService = mock(AvaliacaoService.class);
         matriculaRepository = mock(MatriculaRepository.class);
+        alunoService = mock(AlunoService.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        service = new NotaService(notaRepository, historicoRepository, avaliacaoService, matriculaRepository, eventPublisher);
+        service = new NotaService(notaRepository, historicoRepository, avaliacaoService, matriculaRepository, alunoService, eventPublisher);
 
         avaliacao = new Avaliacao();
         avaliacao.setId(9L);
@@ -63,6 +67,9 @@ class NotaServiceTest {
 
         when(matriculaRepository.findByTurmaIdAndStatus(12L, StatusMatricula.ATIVA))
                 .thenReturn(List.of(matricula(41L, 1L), matricula(42L, 2L)));
+        when(alunoService.obterPorMatricula("2026000041")).thenReturn(aluno(1L, "2026000041"));
+        when(alunoService.obterPorMatricula("2026000042")).thenReturn(aluno(2L, "2026000042"));
+        when(alunoService.obterPorMatricula("2026000077")).thenReturn(aluno(77L, "2026000077"));
         when(notaRepository.findByAvaliacaoIdAndMatriculaIdIn(any(), anyCollection())).thenReturn(List.of());
         doAnswer(inv -> {
             List<Nota> notas = new ArrayList<>(inv.getArgument(0));
@@ -84,7 +91,14 @@ class NotaServiceTest {
     }
 
     private static LancamentoNotaRequest lancamento(Long matriculaId, String valor) {
-        return new LancamentoNotaRequest(matriculaId, new BigDecimal(valor));
+        return new LancamentoNotaRequest("20260000" + matriculaId, new BigDecimal(valor));
+    }
+
+    private static Aluno aluno(Long id, String matricula) {
+        Aluno aluno = new Aluno();
+        aluno.setId(id);
+        aluno.setMatricula(matricula);
+        return aluno;
     }
 
     // --- lançamento ---
@@ -96,6 +110,18 @@ class NotaServiceTest {
         assertThat(notas).extracting(NotaResponse::matriculaId).containsExactly(41L, 42L);
         assertThat(notas).extracting(NotaResponse::valor).containsExactly(new BigDecimal("8.50"), new BigDecimal("7.00"));
         assertThat(notas).allSatisfy(n -> assertThat(n.avaliacaoId()).isEqualTo(9L));
+    }
+
+    @Test
+    void lancaNotaPelaMatriculaInstitucionalDoAluno() {
+        Aluno aluno = new Aluno();
+        aluno.setId(1L);
+        aluno.setMatricula("2026000001");
+        when(alunoService.obterPorMatricula("2026000001")).thenReturn(aluno);
+
+        List<NotaResponse> notas = service.lancar(9L, List.of(new LancamentoNotaRequest("2026000001", new BigDecimal("8"))));
+
+        assertThat(notas).extracting(NotaResponse::matriculaId).containsExactly(41L);
     }
 
     @Test
@@ -125,9 +151,9 @@ class NotaServiceTest {
                 lancamento(41L, "10.5"), lancamento(42L, "5"), lancamento(42L, "6"), lancamento(77L, "5"))))
                 .isInstanceOf(ValidacaoException.class)
                 .satisfies(ex -> assertThat(((ValidacaoException) ex).getPropriedades())
-                        .containsEntry("matriculasComValorAcimaDoMaximo", List.of(41L))
-                        .containsEntry("matriculasDuplicadas", List.of(42L))
-                        .containsEntry("matriculasNaoAtivasNaTurma", List.of(77L)));
+                        .containsEntry("matriculasComValorAcimaDoMaximo", List.of("2026000041"))
+                        .containsEntry("matriculasDuplicadas", List.of("2026000042"))
+                        .containsEntry("matriculasNaoAtivasNaTurma", List.of("2026000077")));
         verify(notaRepository, never()).saveAllAndFlush(anyList());
     }
 

@@ -3,6 +3,7 @@ package com.distrischool.gestao_escolar.frequencia;
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.common.ValidacaoException;
+import com.distrischool.gestao_escolar.aluno.AlunoService;
 import com.distrischool.gestao_escolar.event.AttendanceRecordedEvent;
 import com.distrischool.gestao_escolar.matricula.Matricula;
 import com.distrischool.gestao_escolar.matricula.MatriculaRepository;
@@ -40,17 +41,20 @@ public class ChamadaService {
 
     private final ChamadaRepository chamadaRepository;
     private final MatriculaRepository matriculaRepository;
+    private final AlunoService alunoService;
     private final TurmaReplicaService turmaReplicaService;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
 
     public ChamadaService(ChamadaRepository chamadaRepository,
                           MatriculaRepository matriculaRepository,
+                          AlunoService alunoService,
                           TurmaReplicaService turmaReplicaService,
                           ApplicationEventPublisher eventPublisher,
                           PlatformTransactionManager transactionManager) {
         this.chamadaRepository = chamadaRepository;
         this.matriculaRepository = matriculaRepository;
+        this.alunoService = alunoService;
         this.turmaReplicaService = turmaReplicaService;
         this.eventPublisher = eventPublisher;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -63,12 +67,12 @@ public class ChamadaService {
                     request.turmaId(), request.disciplinaId(), request.data())) {
                 throw duplicada(request);
             }
-            Map<Long, Matricula> ativas = validar(request);
+            ValidacaoChamada validacao = validar(request);
 
             Chamada chamada = new Chamada();
-            aplicar(chamada, request);
+            aplicar(chamada, request, validacao.matriculaPorRegistro());
             chamada = salvar(chamada, request);
-            publicar(chamada, ativas);
+            publicar(chamada, validacao.ativas());
             return ChamadaResponse.from(chamada);
         });
     }
@@ -83,11 +87,11 @@ public class ChamadaService {
                     request.turmaId(), request.disciplinaId(), request.data(), id)) {
                 throw duplicada(request);
             }
-            Map<Long, Matricula> ativas = validar(request);
+            ValidacaoChamada validacao = validar(request);
 
-            aplicar(chamada, request);
+            aplicar(chamada, request, validacao.matriculaPorRegistro());
             chamada = salvar(chamada, request);
-            publicar(chamada, ativas);
+            publicar(chamada, validacao.ativas());
             return ChamadaResponse.from(chamada);
         });
     }
@@ -122,7 +126,7 @@ public class ChamadaService {
      *
      * @return as matrículas ATIVA da turma, por id
      */
-    private Map<Long, Matricula> validar(ChamadaRequest request) {
+    private ValidacaoChamada validar(ChamadaRequest request) {
         TurmaReplica turma = turmaReplicaService.obterComOferta(request.turmaId(), request.disciplinaId());
         if (request.data().isAfter(LocalDate.now())) {
             throw ValidacaoException.campo("data", "não pode ser futura");
@@ -134,13 +138,20 @@ public class ChamadaService {
         Map<Long, Matricula> ativas = matriculaRepository.findByTurmaIdAndStatus(turma.getId(), StatusMatricula.ATIVA)
                 .stream().collect(Collectors.toMap(Matricula::getId, Function.identity()));
         Set<Long> informadas = new HashSet<>();
-        Set<Long> duplicadas = new TreeSet<>();
-        Set<Long> naoEsperadas = new TreeSet<>();
+        Set<String> duplicadas = new TreeSet<>();
+        Set<String> naoEsperadas = new TreeSet<>();
+        Map<ChamadaRequest.Registro, Long> matriculaPorRegistro = new LinkedHashMap<>();
         for (ChamadaRequest.Registro registro : request.registros()) {
-            if (!informadas.add(registro.matriculaId())) {
-                duplicadas.add(registro.matriculaId());
-            } else if (!ativas.containsKey(registro.matriculaId())) {
-                naoEsperadas.add(registro.matriculaId());
+            Long alunoId = alunoService.obterPorMatricula(registro.matriculaAluno()).getId();
+            Long matriculaId = ativas.values().stream().filter(m -> m.getAlunoId().equals(alunoId))
+                    .map(Matricula::getId).findFirst().orElse(null);
+            matriculaPorRegistro.put(registro, matriculaId);
+            if (matriculaId == null) {
+                naoEsperadas.add(registro.matriculaAluno());
+            } else if (!informadas.add(matriculaId)) {
+                duplicadas.add(registro.matriculaAluno());
+            } else if (!ativas.containsKey(matriculaId)) {
+                naoEsperadas.add(registro.matriculaAluno());
             }
         }
         Set<Long> faltando = new TreeSet<>(ativas.keySet());
@@ -154,14 +165,15 @@ public class ChamadaService {
             throw new ValidacaoException(
                     "A chamada deve conter exatamente as matrículas ATIVA da turma, cada uma uma vez", divergencias);
         }
-        return ativas;
+        return new ValidacaoChamada(ativas, matriculaPorRegistro);
     }
 
     /**
      * Atualiza os registros no lugar (por matrícula) em vez de apagar e recriar: no flush o
      * Hibernate faz os INSERTs antes dos DELETEs, o que violaria a chave única (chamada, matrícula).
      */
-    private static void aplicar(Chamada chamada, ChamadaRequest request) {
+    private static void aplicar(Chamada chamada, ChamadaRequest request,
+                                Map<ChamadaRequest.Registro, Long> matriculaPorRegistro) {
         chamada.setTurmaId(request.turmaId());
         chamada.setDisciplinaId(request.disciplinaId());
         chamada.setData(request.data());
@@ -171,11 +183,12 @@ public class ChamadaService {
                 .collect(Collectors.toMap(RegistroFrequencia::getMatriculaId, Function.identity()));
         List<RegistroFrequencia> registros = new ArrayList<>();
         for (ChamadaRequest.Registro r : request.registros()) {
-            RegistroFrequencia registro = existentes.get(r.matriculaId());
+            Long matriculaId = matriculaPorRegistro.get(r);
+            RegistroFrequencia registro = existentes.get(matriculaId);
             if (registro == null) {
                 registro = new RegistroFrequencia();
                 registro.setChamada(chamada);
-                registro.setMatriculaId(r.matriculaId());
+                registro.setMatriculaId(matriculaId);
             }
             registro.setStatus(r.status());
             registro.setObservacao(r.observacao());
@@ -208,5 +221,9 @@ public class ChamadaService {
     private static RegraNegocioException duplicada(ChamadaRequest request) {
         return new RegraNegocioException("Já existe uma chamada da turma " + request.turmaId() + " na disciplina "
                 + request.disciplinaId() + " em " + request.data());
+    }
+
+    private record ValidacaoChamada(Map<Long, Matricula> ativas,
+                                    Map<ChamadaRequest.Registro, Long> matriculaPorRegistro) {
     }
 }

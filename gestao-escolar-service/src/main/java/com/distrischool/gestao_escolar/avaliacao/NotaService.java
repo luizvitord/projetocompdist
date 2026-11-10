@@ -3,6 +3,7 @@ package com.distrischool.gestao_escolar.avaliacao;
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.common.ValidacaoException;
+import com.distrischool.gestao_escolar.aluno.AlunoService;
 import com.distrischool.gestao_escolar.event.GradePostedEvent;
 import com.distrischool.gestao_escolar.matricula.Matricula;
 import com.distrischool.gestao_escolar.matricula.MatriculaRepository;
@@ -36,6 +37,7 @@ public class NotaService {
     private final NotaHistoricoRepository historicoRepository;
     private final AvaliacaoService avaliacaoService;
     private final MatriculaRepository matriculaRepository;
+    private final AlunoService alunoService;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -47,9 +49,10 @@ public class NotaService {
         Avaliacao avaliacao = avaliacaoService.obter(avaliacaoId);
         Map<Long, Matricula> ativas = matriculaRepository.findByTurmaIdAndStatus(avaliacao.getTurmaId(), StatusMatricula.ATIVA)
                 .stream().collect(Collectors.toMap(Matricula::getId, Function.identity()));
-        validar(avaliacao, lancamentos, ativas);
+        Map<LancamentoNotaRequest, Long> matriculas = resolverMatriculas(lancamentos, ativas);
+        validar(avaliacao, lancamentos, matriculas, ativas);
 
-        Set<Long> matriculaIds = lancamentos.stream().map(LancamentoNotaRequest::matriculaId).collect(Collectors.toSet());
+        Set<Long> matriculaIds = new HashSet<>(matriculas.values());
         List<Long> jaLancadas = notaRepository.findByAvaliacaoIdAndMatriculaIdIn(avaliacaoId, matriculaIds).stream()
                 .map(Nota::getMatriculaId).sorted().toList();
         if (!jaLancadas.isEmpty()) {
@@ -60,7 +63,7 @@ public class NotaService {
         for (LancamentoNotaRequest lancamento : lancamentos) {
             Nota nota = new Nota();
             nota.setAvaliacao(avaliacao);
-            nota.setMatriculaId(lancamento.matriculaId());
+            nota.setMatriculaId(matriculas.get(lancamento));
             nota.setValor(escala(lancamento.valor()));
             notas.add(nota);
         }
@@ -124,21 +127,34 @@ public class NotaService {
                 .map(NotaHistoricoResponse::from).toList();
     }
 
-    private static void validar(Avaliacao avaliacao, List<LancamentoNotaRequest> lancamentos, Map<Long, Matricula> ativas) {
-        Set<Long> vistas = new HashSet<>();
-        Set<Long> duplicadas = new TreeSet<>();
-        Set<Long> naoAtivas = new TreeSet<>();
-        Set<Long> acimaDoMaximo = new TreeSet<>();
+    private Map<LancamentoNotaRequest, Long> resolverMatriculas(List<LancamentoNotaRequest> lancamentos,
+                                                                  Map<Long, Matricula> ativas) {
+        Map<LancamentoNotaRequest, Long> resolvidas = new LinkedHashMap<>();
         for (LancamentoNotaRequest lancamento : lancamentos) {
-            Long matriculaId = lancamento.matriculaId();
-            if (!vistas.add(matriculaId)) {
-                duplicadas.add(matriculaId);
+            Long alunoId = alunoService.obterPorMatricula(lancamento.matriculaAluno()).getId();
+            Long matriculaId = ativas.values().stream().filter(m -> m.getAlunoId().equals(alunoId))
+                    .map(Matricula::getId).findFirst().orElse(null);
+            resolvidas.put(lancamento, matriculaId);
+        }
+        return resolvidas;
+    }
+
+    private static void validar(Avaliacao avaliacao, List<LancamentoNotaRequest> lancamentos,
+                                Map<LancamentoNotaRequest, Long> matriculas, Map<Long, Matricula> ativas) {
+        Set<Long> vistas = new HashSet<>();
+        Set<String> duplicadas = new TreeSet<>();
+        Set<String> naoAtivas = new TreeSet<>();
+        Set<String> acimaDoMaximo = new TreeSet<>();
+        for (LancamentoNotaRequest lancamento : lancamentos) {
+            Long matriculaId = matriculas.get(lancamento);
+            if (matriculaId != null && !vistas.add(matriculaId)) {
+                duplicadas.add(lancamento.matriculaAluno());
             }
-            if (!ativas.containsKey(matriculaId)) {
-                naoAtivas.add(matriculaId);
+            if (matriculaId == null || !ativas.containsKey(matriculaId)) {
+                naoAtivas.add(lancamento.matriculaAluno());
             }
             if (lancamento.valor().compareTo(avaliacao.getNotaMaxima()) > 0) {
-                acimaDoMaximo.add(matriculaId);
+                acimaDoMaximo.add(lancamento.matriculaAluno());
             }
         }
         if (!duplicadas.isEmpty() || !naoAtivas.isEmpty() || !acimaDoMaximo.isEmpty()) {

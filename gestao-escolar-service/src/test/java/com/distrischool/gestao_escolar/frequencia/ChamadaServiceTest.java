@@ -2,6 +2,8 @@ package com.distrischool.gestao_escolar.frequencia;
 
 import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.common.ValidacaoException;
+import com.distrischool.gestao_escolar.aluno.Aluno;
+import com.distrischool.gestao_escolar.aluno.AlunoService;
 import com.distrischool.gestao_escolar.event.AttendanceRecordedEvent;
 import com.distrischool.gestao_escolar.matricula.Matricula;
 import com.distrischool.gestao_escolar.matricula.MatriculaRepository;
@@ -40,6 +42,7 @@ class ChamadaServiceTest {
 
     private ChamadaRepository chamadaRepository;
     private MatriculaRepository matriculaRepository;
+    private AlunoService alunoService;
     private TurmaReplicaService turmaReplicaService;
     private ApplicationEventPublisher eventPublisher;
     private ChamadaService service;
@@ -50,9 +53,10 @@ class ChamadaServiceTest {
     void preparar() {
         chamadaRepository = mock(ChamadaRepository.class);
         matriculaRepository = mock(MatriculaRepository.class);
+        alunoService = mock(AlunoService.class);
         turmaReplicaService = mock(TurmaReplicaService.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        service = new ChamadaService(chamadaRepository, matriculaRepository, turmaReplicaService, eventPublisher,
+        service = new ChamadaService(chamadaRepository, matriculaRepository, alunoService, turmaReplicaService, eventPublisher,
                 mock(PlatformTransactionManager.class));
 
         TurmaReplica turma = new TurmaReplica(12L);
@@ -63,6 +67,11 @@ class ChamadaServiceTest {
         ativas.add(matricula(41L, 1L));
         ativas.add(matricula(42L, 2L));
         ativas.add(matricula(43L, 3L));
+        when(alunoService.obterPorMatricula("2026000041")).thenReturn(aluno(1L, "2026000041"));
+        when(alunoService.obterPorMatricula("2026000042")).thenReturn(aluno(2L, "2026000042"));
+        when(alunoService.obterPorMatricula("2026000043")).thenReturn(aluno(3L, "2026000043"));
+        when(alunoService.obterPorMatricula("2026000044")).thenReturn(aluno(4L, "2026000044"));
+        when(alunoService.obterPorMatricula("2026000099")).thenReturn(aluno(99L, "2026000099"));
 
         doAnswer(inv -> {
             Chamada c = inv.getArgument(0);
@@ -89,7 +98,14 @@ class ChamadaServiceTest {
     }
 
     private static ChamadaRequest.Registro r(Long matriculaId, StatusPresenca status) {
-        return new ChamadaRequest.Registro(matriculaId, status, null);
+        return new ChamadaRequest.Registro("20260000" + matriculaId, status, null);
+    }
+
+    private static Aluno aluno(Long id, String matricula) {
+        Aluno aluno = new Aluno();
+        aluno.setId(id);
+        aluno.setMatricula(matricula);
+        return aluno;
     }
 
     private static ChamadaRequest request(LocalDate data, ChamadaRequest.Registro... registros) {
@@ -108,6 +124,23 @@ class ChamadaServiceTest {
                         org.assertj.core.groups.Tuple.tuple(41L, PRESENTE),
                         org.assertj.core.groups.Tuple.tuple(42L, FALTA),
                         org.assertj.core.groups.Tuple.tuple(43L, ATRASO));
+    }
+
+    @Test
+    void registraChamadaPelaMatriculaInstitucionalDoAluno() {
+        Aluno primeiro = new Aluno(); primeiro.setId(1L); primeiro.setMatricula("2026000001");
+        Aluno segundo = new Aluno(); segundo.setId(2L); segundo.setMatricula("2026000002");
+        Aluno terceiro = new Aluno(); terceiro.setId(3L); terceiro.setMatricula("2026000003");
+        when(alunoService.obterPorMatricula("2026000001")).thenReturn(primeiro);
+        when(alunoService.obterPorMatricula("2026000002")).thenReturn(segundo);
+        when(alunoService.obterPorMatricula("2026000003")).thenReturn(terceiro);
+
+        ChamadaResponse resposta = service.registrar(request(ONTEM,
+                new ChamadaRequest.Registro("2026000001", PRESENTE, null),
+                new ChamadaRequest.Registro("2026000002", FALTA, null),
+                new ChamadaRequest.Registro("2026000003", ATRASO, null)));
+
+        assertThat(resposta.registros()).extracting(ChamadaResponse.Registro::matriculaId).containsExactly(41L, 42L, 43L);
     }
 
     @Test
@@ -139,8 +172,8 @@ class ChamadaServiceTest {
                 .isInstanceOf(ValidacaoException.class)
                 .satisfies(ex -> assertThat(((ValidacaoException) ex).getPropriedades())
                         .containsEntry("matriculasFaltando", List.of(42L, 43L))
-                        .containsEntry("matriculasNaoEsperadas", List.of(99L))
-                        .containsEntry("matriculasDuplicadas", List.of(41L)));
+                        .containsEntry("matriculasNaoEsperadas", List.of("2026000099"))
+                        .containsEntry("matriculasDuplicadas", List.of("2026000041")));
         verify(chamadaRepository, never()).saveAndFlush(any());
     }
 
@@ -151,7 +184,7 @@ class ChamadaServiceTest {
         assertThatThrownBy(() -> service.registrar(request(ONTEM, r(41L, PRESENTE), r(42L, PRESENTE), r(43L, PRESENTE))))
                 .isInstanceOf(ValidacaoException.class)
                 .satisfies(ex -> assertThat(((ValidacaoException) ex).getPropriedades())
-                        .containsEntry("matriculasNaoEsperadas", List.of(43L)));
+                        .containsEntry("matriculasNaoEsperadas", List.of("2026000043")));
     }
 
     @Test
@@ -250,7 +283,7 @@ class ChamadaServiceTest {
             RegistroFrequencia registro = new RegistroFrequencia();
             registro.setId(id++);
             registro.setChamada(chamada);
-            registro.setMatriculaId(r.matriculaId());
+            registro.setMatriculaId(Long.parseLong(r.matriculaAluno().substring(8)));
             registro.setStatus(r.status());
             chamada.getRegistros().add(registro);
         }
