@@ -19,10 +19,22 @@
     <properties>
         <java.version>21</java.version>
         <spring-cloud.version>2025.1.4</spring-cloud.version>
+        <!-- resilience4j-spring-boot4 é o módulo para o Spring Boot 4 (o -boot3 não funciona com ele) -->
+        <resilience4j.version>2.4.0</resilience4j.version>
+        <!-- Mesma versão que o spring-cloud-gateway-server-webmvc declara como opcional -->
+        <bucket4j.version>8.15.0</bucket4j.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Antes do BOM do Spring Cloud, que fixaria os módulos do Resilience4j na 2.3.0 -->
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-bom</artifactId>
+                <version>${resilience4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -46,6 +58,33 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+        </dependency>
+        <!-- Circuit breaker por rota (CircuitBreakerFilterFunctions). O starter traz o
+             resilience4j-spring-boot3, trocado aqui pelo resilience4j-spring-boot4 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.github.resilience4j</groupId>
+                    <artifactId>resilience4j-spring-boot3</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot4</artifactId>
+            <version>${resilience4j.version}</version>
+        </dependency>
+        <!-- Rate limiting do login por IP; os buckets ficam em memória, num cache com expiração -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j_jdk17-core</artifactId>
+            <version>${bucket4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
