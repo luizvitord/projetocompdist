@@ -40,10 +40,14 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # Dois listeners: o cliente conecta no endereco anunciado pelo listener por onde entrou.
+      # INTERNAL (kafka:29092) para os containers da rede do compose; EXTERNAL (localhost:9092)
+      # para os servicos rodando direto na maquina.
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -76,7 +80,7 @@ services:
       DB_URL: jdbc:postgresql://postgres-administrativa:5432/gestao_administrativa
       DB_USERNAME: gestao_administrativa
       DB_PASSWORD: gestao_administrativa
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     depends_on: [postgres-administrativa, kafka]
 
   gestao-escolar-service:
@@ -85,7 +89,7 @@ services:
       DB_URL: jdbc:postgresql://postgres-escolar:5432/gestao_escolar
       DB_USERNAME: gestao_escolar
       DB_PASSWORD: gestao_escolar
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081
     depends_on: [postgres-escolar, kafka, gestao-administrativa-service]
   frontend:
