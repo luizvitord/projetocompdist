@@ -8,7 +8,8 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:8080',
       '/escolar': 'http://localhost:8080',
-      '/administrativa': 'http://localhost:8080'
+      '/administrativa': 'http://localhost:8080',
+      '/usuarios': 'http://localhost:8080'
     }
   },
   test: {

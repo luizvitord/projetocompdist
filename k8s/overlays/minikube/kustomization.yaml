@@ -15,6 +15,9 @@ images:
   - name: gestao-escolar-service
     newName: gestao-escolar-service
     newTag: dev
+  - name: usuarios-service
+    newName: usuarios-service
+    newTag: dev
   - name: api-gateway
     newName: api-gateway
     newTag: dev2
@@ -30,6 +33,13 @@ patches:
   - target:
       kind: Deployment
       name: gestao-escolar-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target:
+      kind: Deployment
+      name: usuarios-service
     patch: |-
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
@@ -50,3 +60,14 @@ secretGenerator:
       - POSTGRES_DB=gestao_escolar
       - POSTGRES_USER=gestao_escolar
       - POSTGRES_PASSWORD=gestao_escolar
+  - name: postgres-usuarios-credentials
+    namespace: distrischool
+    literals:
+      - POSTGRES_DB=usuarios
+      - POSTGRES_USER=usuarios
+      - POSTGRES_PASSWORD=usuarios
+  # Segredo do JWT (HS256, minimo de 32 bytes), compartilhado por usuarios-service e api-gateway
+  - name: jwt-secret
+    namespace: distrischool
+    literals:
+      - JWT_SECRET=distrischool-segredo-de-desenvolvimento-minikube

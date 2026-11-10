@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record GatewayRoutesProperties(
         String administrativaUrl,
         String escolarUrl,
+        String usuariosUrl,
         String allowedOrigin
 ) {
 }

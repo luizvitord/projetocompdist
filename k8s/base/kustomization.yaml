@@ -9,6 +9,8 @@ resources:
   - postgres-administrativa/statefulset.yaml
   - postgres-escolar/service.yaml
   - postgres-escolar/statefulset.yaml
+  - postgres-usuarios/service.yaml
+  - postgres-usuarios/statefulset.yaml
   - kafka/service.yaml
   - kafka/statefulset.yaml
   - gestao-administrativa-service/service.yaml
@@ -17,6 +19,9 @@ resources:
   - gestao-escolar-service/service.yaml
   - gestao-escolar-service/deployment.yaml
   - gestao-escolar-service/hpa.yaml
+  - usuarios-service/service.yaml
+  - usuarios-service/deployment.yaml
+  - usuarios-service/hpa.yaml
   - api-gateway/service.yaml
   - api-gateway/deployment.yaml
   - api-gateway/hpa.yaml
@@ -43,9 +48,17 @@ configMapGenerator:
       # Fallback sincrono para turmas que ainda nao chegaram a replica local
       - ADMINISTRATIVA_URL=http://gestao-administrativa-service:8081
       - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
+  # Configuracao nao sensivel do usuarios-service.
+  # Os Secrets postgres-usuarios-credentials e jwt-secret sao definidos em cada overlay.
+  - name: usuarios-config
+    literals:
+      - SERVER_PORT=8083
+      - DB_URL=jdbc:postgresql://postgres-usuarios:5432/usuarios
+      - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
   - name: api-gateway-config
     literals:
       - SERVER_PORT=8080
       - ADMINISTRATIVA_URL=http://gestao-administrativa-service:8081
       - ESCOLAR_URL=http://gestao-escolar-service:8082
+      - USUARIOS_URL=http://usuarios-service:8083
       - FRONTEND_ORIGIN=http://localhost:5173

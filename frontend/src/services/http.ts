@@ -1,4 +1,5 @@
 import { ApiProblem, toApiProblem } from './problemDetail';
+import { clearSession, getSession } from './session';
 
 type QueryValue = string | number | boolean | null | undefined;
 type RequestOptions = { query?: Record<string, QueryValue>; signal?: AbortSignal };
@@ -13,13 +14,27 @@ function pathWithQuery(path: string, query?: Record<string, QueryValue>) {
   return `${url.pathname}${url.search}`;
 }
 
+function requestHeaders(body: unknown): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const token = getSession()?.token;
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
 async function request<T>(method: string, path: string, body?: unknown, options?: RequestOptions): Promise<T> {
   const response = await fetch(pathWithQuery(path, options?.query), {
     method,
     signal: options?.signal,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: requestHeaders(body),
     body: body === undefined ? undefined : JSON.stringify(body)
   });
+  // Token ausente, inválido ou expirado: o gateway responde 401 e é preciso entrar de novo.
+  // No próprio login, 401 significa só senha errada e a tela mostra o erro.
+  if (response.status === 401 && path !== '/auth/login') {
+    clearSession();
+    window.location.assign('/login');
+  }
   if (!response.ok) {
     let payload: Record<string, unknown> = {};
     try { payload = await response.json() as Record<string, unknown>; } catch { /* empty/non-JSON response */ }

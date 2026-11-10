@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { NotFoundPage } from './NotFoundPage';
-import { RequireDemoSession } from '../features/auth/RequireDemoSession';
+import { RequireAuth } from '../features/auth/RequireAuth';
 import { LoginPage } from '../features/auth/LoginPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { AlunosPage } from '../features/alunos/AlunosPage';
@@ -16,7 +16,7 @@ import { FrequenciaPage } from '../features/frequencia/FrequenciaPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
-  { element: <RequireDemoSession />, children: [{ element: <AppShell />, children: [
+  { element: <RequireAuth />, children: [{ element: <AppShell />, children: [
     { path: '/', element: <Navigate to="/dashboard" replace /> },
     { path: '/dashboard', element: <DashboardPage /> },
     { path: '/alunos', element: <AlunosPage /> },
