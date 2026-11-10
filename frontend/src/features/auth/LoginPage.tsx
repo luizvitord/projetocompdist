@@ -20,7 +20,8 @@ export function LoginPage() {
       const destination = (location.state as { from?: string } | null)?.from ?? '/dashboard';
       navigate(destination, { replace: true });
     } catch (error) {
-      setMessage(isApiProblem(error) && error.status === 401
+      // 401: senha errada; 429: limite de tentativas do gateway, com o tempo de espera
+      setMessage(isApiProblem(error) && (error.status === 401 || error.status === 429)
         ? error.detail
         : 'Não foi possível entrar agora. Tente novamente em instantes.');
       setSubmitting(false);

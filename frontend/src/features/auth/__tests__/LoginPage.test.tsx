@@ -51,4 +51,15 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Email ou senha inválidos');
     expect(getSession()).toBeNull();
   });
+
+  it('tells how long to wait when the gateway limits login attempts', async () => {
+    server.use(http.post('/api/auth/login', () => HttpResponse.json(
+      { status: 429, detail: 'Muitas tentativas de login.' },
+      { status: 429, headers: { 'Retry-After': '42' } })));
+    renderLogin();
+
+    fillAndSubmit('coordenacao@distrischool.com', '123456');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Aguarde 42 segundos');
+  });
 });
