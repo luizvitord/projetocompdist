@@ -1,4 +1,19 @@
 # Infraestrutura local para desenvolvimento do gestao-administrativa-service, do gestao-escolar-service e do usuarios-service
+
+# Healthcheck comum dos servicos Spring: /actuator/health/readiness so responde 200 quando o
+# servico esta pronto para receber trafego (banco acessivel). A imagem eclipse-temurin:21-jre tem curl.
+x-spring-healthcheck: &spring-healthcheck
+  interval: 10s
+  timeout: 3s
+  retries: 3
+  # Tempo para subir a JVM e aplicar as migrations do Flyway antes de contar falhas
+  start_period: 90s
+
+x-postgres-healthcheck: &postgres-healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 10
+
 services:
   postgres-administrativa:
     image: postgres:17
@@ -10,6 +25,9 @@ services:
       - "15432:5432"
     volumes:
       - postgres-administrativa-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U gestao_administrativa -d gestao_administrativa"]
 
   postgres-escolar:
     image: postgres:17
@@ -21,6 +39,9 @@ services:
       - "15433:5432"
     volumes:
       - postgres-escolar-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U gestao_escolar -d gestao_escolar"]
 
   postgres-usuarios:
     image: postgres:17
@@ -32,6 +53,9 @@ services:
       - "15434:5432"
     volumes:
       - postgres-usuarios-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U usuarios -d usuarios"]
 
   kafka:
     image: apache/kafka:4.1.0
@@ -52,9 +76,17 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    healthcheck:
+      # O broker responde no listener interno, o mesmo que os servicos usam
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   api-gateway:
     build: ./api-gateway
+    restart: unless-stopped
     environment:
       ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081
       ESCOLAR_URL: http://gestao-escolar-service:8082
@@ -63,39 +95,70 @@ services:
       # Mesmo segredo do usuarios-service: o gateway valida os tokens que ele assina
       JWT_SECRET: distrischool-segredo-de-desenvolvimento-local
     ports: ["8080:8080"]
-    depends_on: [gestao-administrativa-service, gestao-escolar-service, usuarios-service]
+    healthcheck:
+      <<: *spring-healthcheck
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/actuator/health/readiness"]
+    # O gateway nao depende da saude dos servicos de tras (timeouts e circuit breaker); so
+    # espera os containers existirem
+    depends_on:
+      gestao-administrativa-service: { condition: service_started }
+      gestao-escolar-service: { condition: service_started }
+      usuarios-service: { condition: service_started }
 
   usuarios-service:
     build: ./usuarios-service
+    restart: unless-stopped
     environment:
       DB_URL: jdbc:postgresql://postgres-usuarios:5432/usuarios
       DB_USERNAME: usuarios
       DB_PASSWORD: usuarios
       JWT_SECRET: distrischool-segredo-de-desenvolvimento-local
-    depends_on: [postgres-usuarios]
+    healthcheck:
+      <<: *spring-healthcheck
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8083/actuator/health/readiness"]
+    depends_on:
+      postgres-usuarios: { condition: service_healthy }
 
   gestao-administrativa-service:
     build: ./gestao-administrativa-service
+    restart: unless-stopped
     environment:
       DB_URL: jdbc:postgresql://postgres-administrativa:5432/gestao_administrativa
       DB_USERNAME: gestao_administrativa
       DB_PASSWORD: gestao_administrativa
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    depends_on: [postgres-administrativa, kafka]
+    healthcheck:
+      <<: *spring-healthcheck
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8081/actuator/health/readiness"]
+    depends_on:
+      postgres-administrativa: { condition: service_healthy }
+      kafka: { condition: service_healthy }
 
   gestao-escolar-service:
     build: ./gestao-escolar-service
+    restart: unless-stopped
     environment:
       DB_URL: jdbc:postgresql://postgres-escolar:5432/gestao_escolar
       DB_USERNAME: gestao_escolar
       DB_PASSWORD: gestao_escolar
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081
-    depends_on: [postgres-escolar, kafka, gestao-administrativa-service]
+    healthcheck:
+      <<: *spring-healthcheck
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8082/actuator/health/readiness"]
+    depends_on:
+      postgres-escolar: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      # So para o fallback sincrono de turmas; a replica local funciona sem ele
+      gestao-administrativa-service: { condition: service_started }
+
   frontend:
     build: ./frontend
+    restart: unless-stopped
     ports: ["5173:80"]
-    depends_on: [api-gateway]
+    # O nginx resolve o nome api-gateway na subida
+    depends_on:
+      api-gateway: { condition: service_healthy }
 
 volumes:
   postgres-administrativa-data:
