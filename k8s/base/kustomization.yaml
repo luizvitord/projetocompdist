@@ -16,15 +16,19 @@ resources:
   - gestao-administrativa-service/service.yaml
   - gestao-administrativa-service/deployment.yaml
   - gestao-administrativa-service/hpa.yaml
+  - gestao-administrativa-service/pdb.yaml
   - gestao-escolar-service/service.yaml
   - gestao-escolar-service/deployment.yaml
   - gestao-escolar-service/hpa.yaml
+  - gestao-escolar-service/pdb.yaml
   - usuarios-service/service.yaml
   - usuarios-service/deployment.yaml
   - usuarios-service/hpa.yaml
+  - usuarios-service/pdb.yaml
   - api-gateway/service.yaml
   - api-gateway/deployment.yaml
   - api-gateway/hpa.yaml
+  - api-gateway/pdb.yaml
   - ingress.yaml
 
 # Configuracao nao sensivel do gestao-administrativa-service (lida via envFrom).

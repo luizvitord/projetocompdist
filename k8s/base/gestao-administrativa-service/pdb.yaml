@@ -1,0 +1,13 @@
+# Interrupcoes voluntarias (drain de no, upgrade do cluster) nunca derrubam todas as replicas
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gestao-administrativa-service
+  labels:
+    app.kubernetes.io/name: gestao-administrativa-service
+    app.kubernetes.io/part-of: distrischool
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gestao-administrativa-service
