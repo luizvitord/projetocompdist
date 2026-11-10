@@ -1,45 +1,60 @@
 package com.distrischool.gestao_administrativa.event;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.context.event.EventListener;
+import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
 
 /**
- * Encaminha os eventos de domínio para o Kafka somente após o commit da transação,
- * evitando publicar eventos de operações que sofreram rollback.
+ * Grava os eventos de domínio na outbox, na mesma transação da operação de negócio: o evento
+ * existe se, e somente se, a operação foi confirmada. O {@link OutboxRelay} publica no Kafka
+ * depois do commit, inclusive se o Kafka estiver fora do ar neste momento.
+ * <p>
+ * O payload é serializado aqui pelo mesmo serializador do produtor, com a mesma configuração
+ * (JacksonJsonSerializer, sem cabeçalhos de tipo); o relay envia esses bytes como estão. A
+ * mensagem que chega ao Kafka é a mesma de quando o evento era publicado diretamente.
+ * <p>
+ * {@code MANDATORY}: um evento publicado fora de uma transação é erro de programação e falha na
+ * hora, em vez de se perder. Os logs trazem só o tópico e a chave.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class KafkaEventPublisher {
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final OutboxRepository outbox;
+    private final JacksonJsonSerializer<Object> serializer = new JacksonJsonSerializer<>();
 
-    @TransactionalEventListener
+    public KafkaEventPublisher(OutboxRepository outbox, ProducerFactory<?, ?> producerFactory) {
+        this.outbox = outbox;
+        serializer.configure(producerFactory.getConfigurationProperties(), false);
+    }
+
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
     public void on(TeacherAssignedEvent event) {
-        send(KafkaTopics.TEACHER_ASSIGNED, event.turmaId(), event);
+        gravar(KafkaTopics.TEACHER_ASSIGNED, event.turmaId(), event);
     }
 
-    @TransactionalEventListener
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
     public void on(ScheduleUpdatedEvent event) {
-        send(KafkaTopics.SCHEDULE_UPDATED, event.turmaId(), event);
+        gravar(KafkaTopics.SCHEDULE_UPDATED, event.turmaId(), event);
     }
 
-    @TransactionalEventListener
+    @EventListener
+    @Transactional(propagation = Propagation.MANDATORY)
     public void on(StaffCreatedEvent event) {
-        send(KafkaTopics.STAFF_CREATED, event.tecnicoId(), event);
+        gravar(KafkaTopics.STAFF_CREATED, event.tecnicoId(), event);
     }
 
-    private void send(String topic, Long key, Object event) {
-        kafkaTemplate.send(topic, String.valueOf(key), event)
-                .whenComplete((result, ex) -> {
-                    if (ex != null) {
-                        log.error("Falha ao publicar evento no tópico {}: {}", topic, event, ex);
-                    } else {
-                        log.debug("Evento publicado no tópico {}: {}", topic, event);
-                    }
-                });
+    private void gravar(String topic, Long key, Object event) {
+        String payload = new String(serializer.serialize(topic, event), StandardCharsets.UTF_8);
+        outbox.inserir(topic, String.valueOf(key), payload);
+        log.debug("Evento gravado na outbox para o tópico {} (chave {})", topic, key);
     }
 }
