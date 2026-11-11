@@ -1,6 +1,14 @@
 # DistriSchool
 
-Plataforma de gestão escolar com três microsserviços (gestão administrativa, gestão escolar e usuários) e um API Gateway.
+Plataforma de gestão escolar com quatro microsserviços (gestão administrativa, gestão escolar, usuários e notificações) e um API Gateway.
+
+| Serviço | Porta | Responsabilidade |
+|---|---|---|
+| `api-gateway` | 8080 | Entrada única; valida o JWT e aplica as permissões por perfil |
+| `gestao-administrativa-service` | 8081 | Professores, técnicos, turmas e disciplinas |
+| `gestao-escolar-service` | 8082 | Alunos, matrículas, frequência, notas e boletim |
+| `usuarios-service` | 8083 | Login e emissão do JWT |
+| [`notificacao-service`](notificacao-service/README.md) | 8084 | Notificações e avisos a partir dos eventos do Kafka (Spring Cloud Stream) |
 
 ## Executar localmente
 

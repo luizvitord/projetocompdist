@@ -39,6 +39,8 @@ class GatewayConfigTest {
         escolar = upstream();
         escolar.createContext("/api/alunos/7/boletim", exchange -> respond(exchange, 200,
                 exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getQuery()));
+        escolar.createContext("/api/alunos/eco-authorization", exchange -> respond(exchange, 200,
+                String.valueOf(exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION))));
         escolar.createContext("/api/matriculas/9/status", exchange -> respond(exchange, 409,
                 "{\"type\":\"about:blank\",\"status\":409,\"detail\":\"Transição inválida\"}",
                 "application/problem+json"));
@@ -93,6 +95,19 @@ class GatewayConfigTest {
 
         assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
         assertThat(response.body()).isEqualTo("POST /api/auth/login");
+    }
+
+    /** notificacao-service identifies the recipient from the token, so it must receive the header as sent. */
+    @Test
+    void relaysTheAuthorizationHeaderToTheService() throws Exception {
+        String authorization = TestTokens.bearer("RESPONSAVEL");
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url("/api/alunos/eco-authorization")))
+                .header(HttpHeaders.AUTHORIZATION, authorization).GET().build();
+
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.body()).isEqualTo(authorization);
     }
 
     @Test
