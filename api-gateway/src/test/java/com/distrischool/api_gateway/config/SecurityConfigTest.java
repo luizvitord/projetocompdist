@@ -54,6 +54,7 @@ class SecurityConfigTest {
         registry.add("gateway.escolar-url", () -> url);
         registry.add("gateway.administrativa-url", () -> url);
         registry.add("gateway.usuarios-url", () -> url);
+        registry.add("gateway.notificacao-url", () -> url);
     }
 
     @Test
@@ -101,6 +102,27 @@ class SecurityConfigTest {
         assertThat(send("GET", "/api/usuarios", TestTokens.bearer("ADMIN"))).isEqualTo(200);
         assertThat(send("POST", "/api/turmas", TestTokens.bearer("ADMIN"))).isEqualTo(200);
         assertThat(send("GET", "/api/usuarios", TestTokens.bearer("PROFESSOR"))).isEqualTo(403);
+    }
+
+    @Test
+    void everyProfileReadsAndMarksItsOwnNotifications() throws Exception {
+        for (String perfil : new String[] {"ADMIN", "PROFESSOR", "ALUNO", "RESPONSAVEL"}) {
+            String token = TestTokens.bearer(perfil);
+
+            assertThat(send("GET", "/api/notificacoes", token)).as(perfil).isEqualTo(200);
+            assertThat(send("GET", "/api/notificacoes/nao-lidas/contagem", token)).as(perfil).isEqualTo(200);
+            // Not GET: these would fall into the ADMIN-only rule if it were declared first
+            assertThat(send("PATCH", "/api/notificacoes/7/lida", token)).as(perfil).isEqualTo(200);
+            assertThat(send("POST", "/api/notificacoes/lidas", token)).as(perfil).isEqualTo(200);
+        }
+    }
+
+    @Test
+    void notificationsStillNeedAToken() throws Exception {
+        assertThat(send("GET", "/api/notificacoes", null)).isEqualTo(401);
+        assertThat(send("POST", "/api/notificacoes/lidas", null)).isEqualTo(401);
+        // Swagger of the service is open, like the others
+        assertThat(send("GET", "/notificacao/swagger-ui.html", null)).isEqualTo(200);
     }
 
     private int send(String method, String path, String authorization) throws Exception {

@@ -7,6 +7,7 @@ public record GatewayRoutesProperties(
         String administrativaUrl,
         String escolarUrl,
         String usuariosUrl,
+        String notificacaoUrl,
         String allowedOrigin
 ) {
 }

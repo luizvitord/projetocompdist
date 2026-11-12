@@ -15,9 +15,11 @@ API Gateway (8080)
         +--> gestao-escolar-service (8082)
         |
         +--> usuarios-service (8083)
+        |
+        +--> notificacao-service (8084)   <-- /ws (WebSocket), direto do frontend
 ```
 
-O navegador deve acessar somente o API Gateway. As portas `8081`, `8082` e `8083` são usadas pelos serviços internos e não devem ser configuradas diretamente no frontend.
+O navegador deve acessar somente o API Gateway. As portas `8081`, `8082` e `8083` são usadas pelos serviços internos e não devem ser configuradas diretamente no frontend. A exceção é o WebSocket das notificações (`/ws`): o gateway não faz proxy de WebSocket, então o nginx do frontend (Docker Compose) e o proxy do Vite (modo desenvolvimento) o encaminham direto para o `notificacao-service` na `8084`.
 
 ## Pré-requisitos
 
@@ -57,7 +59,7 @@ Em um terminal, execute:
 
 ```bash
 cd /home/janylson/Documentos/GITHUB/projetocompdist
-docker compose up -d postgres-administrativa postgres-escolar kafka
+docker compose up -d postgres-administrativa postgres-escolar postgres-usuarios postgres-notificacao kafka
 ```
 
 Em terminais separados, execute os serviços backend conforme necessário. O API Gateway pode ser executado com:
@@ -81,7 +83,7 @@ npm install
 npm run dev
 ```
 
-O Vite executa em <http://localhost:5173> e encaminha `/api`, `/escolar`, `/administrativa` e `/usuarios` para <http://localhost:8080>.
+O Vite executa em <http://localhost:5173> e encaminha `/api`, `/escolar`, `/administrativa`, `/usuarios` e `/notificacao` para <http://localhost:8080>. O `/ws` (WebSocket das notificações) vai para <http://localhost:8084>, a porta do `notificacao-service` (o Docker Compose a publica; no Kubernetes, use `kubectl port-forward -n distrischool svc/notificacao-service 8084:8084`).
 
 ## Opção 3: frontend local conectado aos pods Kubernetes
 

@@ -33,6 +33,7 @@ class ServicoForaDoArGatewayTest {
         registry.add("gateway.escolar-url", () -> closed);
         registry.add("gateway.administrativa-url", () -> closed);
         registry.add("gateway.usuarios-url", () -> closed);
+        registry.add("gateway.notificacao-url", () -> closed);
     }
 
     @Test
@@ -49,6 +50,15 @@ class ServicoForaDoArGatewayTest {
     @Test
     void postToAServiceThatIsDownAlsoBecomes503() throws Exception {
         assertThat(send("POST", "/api/turmas").statusCode()).isEqualTo(503);
+    }
+
+    @Test
+    void notificationsDownBecome503ProblemDetail() throws Exception {
+        HttpResponse<String> response = send("GET", "/api/notificacoes/nao-lidas/contagem");
+
+        assertThat(response.statusCode()).isEqualTo(503);
+        assertThat(response.headers().firstValue("Content-Type").orElse("")).contains("application/problem+json");
+        assertThat(send("POST", "/api/notificacoes/lidas").statusCode()).isEqualTo(503);
     }
 
     @Test

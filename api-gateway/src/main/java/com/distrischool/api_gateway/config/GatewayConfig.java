@@ -68,6 +68,21 @@ public class GatewayConfig {
                 .build();
     }
 
+    /**
+     * Só a API REST e o Swagger das notificações. O WebSocket ({@code /ws}) não passa pelo gateway:
+     * o Spring Cloud Gateway Server MVC não faz proxy de WebSocket, então o nginx do frontend, o
+     * proxy do Vite e o Ingress o enviam direto ao notificacao-service, que valida o JWT.
+     */
+    @Bean
+    RouterFunction<ServerResponse> notificacaoRoutes(GatewayRoutesProperties properties, ResilienciaProperties resiliencia) {
+        return route("notificacao")
+                .route(path("/api/notificacoes/**")
+                                .or(path("/notificacao/**")), http())
+                .before(uri(properties.notificacaoUrl()))
+                .filter(resiliente("notificacao", resiliencia))
+                .build();
+    }
+
     private static HandlerFilterFunction<ServerResponse, ServerResponse> resiliente(String id, ResilienciaProperties resiliencia) {
         return new IndisponibilidadeFilter(id)
                 .andThen(circuitBreaker(id))

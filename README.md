@@ -20,4 +20,4 @@ Login: `coordenacao@distrischool.com` / `123456` (administrador criado pela migr
 
 ## Kubernetes
 
-Use `kubectl apply -k k8s/overlays/minikube`. O Ingress expõe somente o API Gateway para `/api`, `/administrativa`, `/escolar` e `/usuarios`; os serviços de negócio permanecem internos.
+Use `kubectl apply -k k8s/overlays/minikube`. O Ingress expõe o API Gateway para `/api`, `/administrativa`, `/escolar`, `/usuarios` e `/notificacao`; os serviços de negócio permanecem internos. A única exceção é o WebSocket das notificações (`/ws`), que vai direto para o `notificacao-service` porque o gateway não faz proxy de WebSocket ([detalhes](docs/AUTENTICACAO.md)).

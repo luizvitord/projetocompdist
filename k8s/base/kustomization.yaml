@@ -11,6 +11,8 @@ resources:
   - postgres-escolar/statefulset.yaml
   - postgres-usuarios/service.yaml
   - postgres-usuarios/statefulset.yaml
+  - postgres-notificacao/service.yaml
+  - postgres-notificacao/statefulset.yaml
   - kafka/service.yaml
   - kafka/statefulset.yaml
   - gestao-administrativa-service/service.yaml
@@ -25,6 +27,10 @@ resources:
   - usuarios-service/deployment.yaml
   - usuarios-service/hpa.yaml
   - usuarios-service/pdb.yaml
+  - notificacao-service/service.yaml
+  - notificacao-service/deployment.yaml
+  - notificacao-service/hpa.yaml
+  - notificacao-service/pdb.yaml
   - api-gateway/service.yaml
   - api-gateway/deployment.yaml
   - api-gateway/hpa.yaml
@@ -59,10 +65,19 @@ configMapGenerator:
       - SERVER_PORT=8083
       - DB_URL=jdbc:postgresql://postgres-usuarios:5432/usuarios
       - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
+  # Configuracao nao sensivel do notificacao-service.
+  # Os Secrets postgres-notificacao-credentials e jwt-secret sao definidos em cada overlay.
+  - name: notificacao-config
+    literals:
+      - SERVER_PORT=8084
+      - DB_URL=jdbc:postgresql://postgres-notificacao:5432/notificacao
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs
   - name: api-gateway-config
     literals:
       - SERVER_PORT=8080
       - ADMINISTRATIVA_URL=http://gestao-administrativa-service:8081
       - ESCOLAR_URL=http://gestao-escolar-service:8082
       - USUARIOS_URL=http://usuarios-service:8083
+      - NOTIFICACAO_URL=http://notificacao-service:8084
       - FRONTEND_ORIGIN=http://localhost:5173

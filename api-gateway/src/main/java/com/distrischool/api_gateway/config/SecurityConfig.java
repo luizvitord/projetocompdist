@@ -23,12 +23,14 @@ import java.util.List;
 
 /**
  * O gateway é a porta de entrada: toda requisição para /api precisa de um JWT válido, emitido
- * pelo usuarios-service no login. Os serviços de trás confiam no gateway e não validam o token.
+ * pelo usuarios-service no login. Os serviços de trás confiam no gateway e não validam o token;
+ * a exceção é o notificacao-service, que também valida o token para identificar o destinatário.
  * <p>
  * Regras por perfil (claim {@code perfil} do token), na ordem em que são avaliadas:
  * <ul>
  *   <li>login, health checks e Swagger: livres;</li>
  *   <li>administração de usuários: só ADMIN;</li>
+ *   <li>notificações do próprio usuário (todos os métodos): qualquer usuário autenticado;</li>
  *   <li>consultas (GET): qualquer usuário autenticado;</li>
  *   <li>lançar notas e frequência: ADMIN ou PROFESSOR;</li>
  *   <li>demais alterações (cadastros, turmas, matrículas): só ADMIN.</li>
@@ -51,9 +53,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         // Swagger de cada serviço
-                        .requestMatchers("/administrativa/**", "/escolar/**", "/usuarios/**").permitAll()
+                        .requestMatchers("/administrativa/**", "/escolar/**", "/usuarios/**", "/notificacao/**")
+                                .permitAll()
 
                         .requestMatchers("/api/usuarios/**").hasRole(ADMIN)
+                        // Antes da regra que restringe /api/** a ADMIN: cada usuário lê e marca como
+                        // lidas as próprias notificações (PATCH e POST), seja qual for o perfil
+                        .requestMatchers("/api/notificacoes/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/**").authenticated()
                         .requestMatchers("/api/avaliacoes/**", "/api/notas/**", "/api/frequencias/**")
                                 .hasAnyRole(ADMIN, PROFESSOR)

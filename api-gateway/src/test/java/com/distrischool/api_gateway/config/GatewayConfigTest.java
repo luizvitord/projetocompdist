@@ -30,6 +30,7 @@ class GatewayConfigTest {
     private static HttpServer escolar;
     private static HttpServer administrativa;
     private static HttpServer usuarios;
+    private static HttpServer notificacao;
 
     @LocalServerPort
     private int port;
@@ -55,6 +56,14 @@ class GatewayConfigTest {
         usuarios.createContext("/api/auth/login", exchange -> respond(exchange, 200,
                 exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath()));
         usuarios.start();
+
+        notificacao = upstream();
+        notificacao.createContext("/api/notificacoes", exchange -> respond(exchange, 200,
+                exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + " "
+                        + exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION)));
+        notificacao.createContext("/notificacao/v3/api-docs", exchange -> respond(exchange, 200,
+                exchange.getRequestURI().getPath()));
+        notificacao.start();
     }
 
     @AfterAll
@@ -62,6 +71,7 @@ class GatewayConfigTest {
         escolar.stop(0);
         administrativa.stop(0);
         usuarios.stop(0);
+        notificacao.stop(0);
     }
 
     @DynamicPropertySource
@@ -69,6 +79,7 @@ class GatewayConfigTest {
         registry.add("gateway.escolar-url", () -> url(escolar));
         registry.add("gateway.administrativa-url", () -> url(administrativa));
         registry.add("gateway.usuarios-url", () -> url(usuarios));
+        registry.add("gateway.notificacao-url", () -> url(notificacao));
         registry.add("gateway.allowed-origin", () -> "http://localhost:5173");
     }
 
@@ -108,6 +119,35 @@ class GatewayConfigTest {
 
         assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
         assertThat(response.body()).isEqualTo(authorization);
+    }
+
+    @Test
+    void routesNotificationsToNotificacaoWithTheTokenOfTheCaller() throws Exception {
+        String authorization = TestTokens.bearer("RESPONSAVEL");
+        for (String[] call : new String[][] {
+                {"GET", "/api/notificacoes"},
+                {"GET", "/api/notificacoes/nao-lidas/contagem"},
+                {"PATCH", "/api/notificacoes/7/lida"},
+                {"POST", "/api/notificacoes/lidas"}}) {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url(call[1])))
+                    .header(HttpHeaders.AUTHORIZATION, authorization)
+                    .method(call[0], HttpRequest.BodyPublishers.noBody()).build();
+
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            assertThat(response.statusCode()).as(call[0] + " " + call[1]).isEqualTo(HttpStatus.OK.value());
+            assertThat(response.body()).isEqualTo(call[0] + " " + call[1] + " " + authorization);
+        }
+    }
+
+    @Test
+    void routesNotificacaoSwaggerPrefixWithoutToken() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url("/notificacao/v3/api-docs"))).GET().build();
+
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(HttpStatus.OK.value());
+        assertThat(response.body()).isEqualTo("/notificacao/v3/api-docs");
     }
 
     @Test

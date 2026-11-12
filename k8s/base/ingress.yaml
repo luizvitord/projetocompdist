@@ -10,3 +10,23 @@ spec:
           - { path: /administrativa, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
           - { path: /escolar, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
           - { path: /usuarios, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
+          - { path: /notificacao, pathType: Prefix, backend: { service: { name: api-gateway, port: { name: http } } } }
+---
+# WebSocket das notificacoes (STOMP em /ws): vai direto para o notificacao-service, porque o
+# api-gateway (Spring Cloud Gateway Server MVC) nao faz proxy de WebSocket. O proprio servico valida
+# o JWT, no frame CONNECT. Ingress separado para os timeouts longos valerem so para esta rota: o
+# padrao do ingress-nginx (60 s) derrubaria as conexoes.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: distrischool-ws
+  labels: { app.kubernetes.io/part-of: distrischool }
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - { path: /ws, pathType: Exact, backend: { service: { name: notificacao-service, port: { name: http } } } }

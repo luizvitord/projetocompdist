@@ -18,6 +18,9 @@ images:
   - name: usuarios-service
     newName: usuarios-service
     newTag: dev
+  - name: notificacao-service
+    newName: notificacao-service
+    newTag: dev
   - name: api-gateway
     newName: api-gateway
     newTag: dev2
@@ -44,6 +47,13 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
+  - target:
+      kind: Deployment
+      name: notificacao-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
 
 # Credenciais apenas de desenvolvimento. Em producao (EKS/AKS) o Secret
 # deve vir de um cofre (AWS Secrets Manager / Azure Key Vault), nunca do repositorio.
@@ -66,7 +76,14 @@ secretGenerator:
       - POSTGRES_DB=usuarios
       - POSTGRES_USER=usuarios
       - POSTGRES_PASSWORD=usuarios
-  # Segredo do JWT (HS256, minimo de 32 bytes), compartilhado por usuarios-service e api-gateway
+  - name: postgres-notificacao-credentials
+    namespace: distrischool
+    literals:
+      - POSTGRES_DB=notificacao
+      - POSTGRES_USER=notificacao
+      - POSTGRES_PASSWORD=notificacao
+  # Segredo do JWT (HS256, minimo de 32 bytes), compartilhado por usuarios-service, api-gateway e
+  # notificacao-service
   - name: jwt-secret
     namespace: distrischool
     literals:

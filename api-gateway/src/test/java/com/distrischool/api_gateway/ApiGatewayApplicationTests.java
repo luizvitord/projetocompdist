@@ -6,7 +6,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest(properties = {
         "ADMINISTRATIVA_URL=http://administrativa.test",
         "ESCOLAR_URL=http://escolar.test",
-        "USUARIOS_URL=http://usuarios.test"
+        "USUARIOS_URL=http://usuarios.test",
+        "NOTIFICACAO_URL=http://notificacao.test"
 })
 class ApiGatewayApplicationTests {
 

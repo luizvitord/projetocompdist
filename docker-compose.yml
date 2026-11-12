@@ -1,4 +1,5 @@
-# Infraestrutura local para desenvolvimento do gestao-administrativa-service, do gestao-escolar-service e do usuarios-service
+# Infraestrutura local para desenvolvimento do gestao-administrativa-service, do gestao-escolar-service,
+# do usuarios-service e do notificacao-service
 
 # Healthcheck comum dos servicos Spring: /actuator/health/readiness so responde 200 quando o
 # servico esta pronto para receber trafego (banco acessivel). A imagem eclipse-temurin:21-jre tem curl.
@@ -57,6 +58,20 @@ services:
       <<: *postgres-healthcheck
       test: ["CMD-SHELL", "pg_isready -U usuarios -d usuarios"]
 
+  postgres-notificacao:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: notificacao
+      POSTGRES_USER: notificacao
+      POSTGRES_PASSWORD: notificacao
+    ports:
+      - "15435:5432"
+    volumes:
+      - postgres-notificacao-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U notificacao -d notificacao"]
+
   kafka:
     image: apache/kafka:4.1.0
     ports:
@@ -91,6 +106,7 @@ services:
       ADMINISTRATIVA_URL: http://gestao-administrativa-service:8081
       ESCOLAR_URL: http://gestao-escolar-service:8082
       USUARIOS_URL: http://usuarios-service:8083
+      NOTIFICACAO_URL: http://notificacao-service:8084
       FRONTEND_ORIGIN: http://localhost:5173
       # Mesmo segredo do usuarios-service: o gateway valida os tokens que ele assina
       JWT_SECRET: distrischool-segredo-de-desenvolvimento-local
@@ -104,6 +120,7 @@ services:
       gestao-administrativa-service: { condition: service_started }
       gestao-escolar-service: { condition: service_started }
       usuarios-service: { condition: service_started }
+      notificacao-service: { condition: service_started }
 
   usuarios-service:
     build: ./usuarios-service
@@ -152,15 +169,37 @@ services:
       # So para o fallback sincrono de turmas; a replica local funciona sem ele
       gestao-administrativa-service: { condition: service_started }
 
+  notificacao-service:
+    build: ./notificacao-service
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres-notificacao:5432/notificacao
+      DB_USERNAME: notificacao
+      DB_PASSWORD: notificacao
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # Mesmo segredo do usuarios-service: este servico tambem valida o token (API REST e WebSocket)
+      JWT_SECRET: distrischool-segredo-de-desenvolvimento-local
+    # Porta publicada para o modo de desenvolvimento do frontend: o proxy do Vite manda o /ws
+    # (WebSocket) direto para ca, sem passar pelo gateway
+    ports: ["8084:8084"]
+    healthcheck:
+      <<: *spring-healthcheck
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8084/actuator/health/readiness"]
+    depends_on:
+      postgres-notificacao: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
   frontend:
     build: ./frontend
     restart: unless-stopped
     ports: ["5173:80"]
-    # O nginx resolve o nome api-gateway na subida
+    # O nginx resolve os nomes api-gateway e notificacao-service (WebSocket) na subida
     depends_on:
       api-gateway: { condition: service_healthy }
+      notificacao-service: { condition: service_started }
 
 volumes:
   postgres-administrativa-data:
   postgres-escolar-data:
   postgres-usuarios-data:
+  postgres-notificacao-data:

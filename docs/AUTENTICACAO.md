@@ -15,16 +15,44 @@ Navegador ──login──> API Gateway ──> usuarios-service ──> confer
 ```
 
 - **usuarios-service** (porta 8083, banco `usuarios`): guarda os usuários e emite o token no login.
-- **api-gateway**: único ponto que valida o token. Sem token válido, responde `401`. Com token
-  válido mas perfil sem permissão, responde `403`.
-- **Serviços de negócio**: não mudaram. Confiam no gateway, que é a única entrada externa (Ingress).
+- **api-gateway**: valida o token de toda requisição HTTP. Sem token válido, responde `401`. Com
+  token válido mas perfil sem permissão, responde `403`. É o único ponto que valida o token,
+  **exceto no WebSocket de notificações** (abaixo).
+- **Serviços de negócio**: não mudaram. Confiam no gateway, que é a entrada externa das APIs (Ingress).
+- **notificacao-service**: também valida o token (mesmo segredo), por dois motivos. Na API REST,
+  ele precisa saber de quem são as notificações, e tira o destinatário das claims `perfil` e
+  `referenciaId` do próprio token, nunca de parâmetros. No WebSocket, ele é a porta de entrada.
+
+## Exceção: WebSocket de notificações
+
+O gateway é o Spring Cloud Gateway **Server MVC**, que não faz proxy de WebSocket (a versão em uso,
+5.0.4, não tem suporte). Por isso o endpoint `/ws` vai **direto** para o `notificacao-service`:
+
+```
+Navegador ──/api/...──> nginx do frontend / Ingress ──> API Gateway (valida o JWT) ──> serviços
+    │
+    └──/ws (WebSocket)──> nginx do frontend / Ingress "distrischool-ws" ──> notificacao-service
+                                                                              valida o JWT no frame CONNECT
+```
+
+| Ambiente | Quem encaminha o `/ws` |
+|---|---|
+| Docker Compose | `frontend/nginx.conf` (`location = /ws`) |
+| Frontend em modo de desenvolvimento | proxy do Vite (`/ws` → `http://localhost:8084`) |
+| Kubernetes | Ingress `distrischool-ws` |
+
+O navegador não consegue enviar cabeçalhos no handshake do WebSocket, então o token vai no frame
+`CONNECT` do STOMP (`Authorization: Bearer <token>`). Sem token válido, o `notificacao-service`
+recusa a conexão. Depois de conectado, o cliente só consegue assinar a própria fila
+(`/user/queue/notificacoes`). Detalhes no
+[README do notificacao-service](../notificacao-service/README.md).
 
 ## Decisões
 
 | Decisão | Escolha | Por quê |
 |---|---|---|
 | Assinatura do token | HS256 com um segredo compartilhado (`JWT_SECRET`) | Uma única chave, configurada no usuarios-service e no gateway |
-| Quem valida o token | Só o api-gateway | Os serviços de negócio continuam simples; o Ingress só expõe o gateway |
+| Quem valida o token | O api-gateway (e o notificacao-service, para as notificações) | Os serviços de negócio continuam simples; o Ingress só expõe o gateway e o `/ws` |
 | Renovação | Sem refresh token; o token vale 8 horas (`JWT_VALIDADE`) | Ao expirar, o frontend volta para o login |
 | Senhas | Hash BCrypt | A senha em texto puro nunca é gravada |
 
@@ -37,6 +65,7 @@ Navegador ──login──> API Gateway ──> usuarios-service ──> confer
 | Lançar notas e frequência (`/api/avaliacoes`, `/api/notas`, `/api/frequencias`) | ✔ | ✔ | | |
 | Demais alterações (alunos, turmas, matrículas, professores...) | ✔ | | | |
 | Administração de usuários (`/api/usuarios`) | ✔ | | | |
+| Notificações do próprio usuário (`/api/notificacoes`, todos os métodos) | ✔ | ✔ | ✔ | ✔ |
 
 As regras ficam em [`SecurityConfig`](../api-gateway/src/main/java/com/distrischool/api_gateway/config/SecurityConfig.java).
 
@@ -91,8 +120,8 @@ Swagger do serviço: `http://localhost:8080/usuarios/swagger-ui.html` (via gatew
 | minikube | Secret `jwt-secret`, gerado em `k8s/overlays/minikube/kustomization.yaml` |
 | Nuvem | Deve vir de um cofre (AWS Secrets Manager / Azure Key Vault), nunca do repositório |
 
-O segredo precisa ter pelo menos 32 bytes e ser **igual** no usuarios-service e no api-gateway;
-se forem diferentes, todo token é recusado com `401`.
+O segredo precisa ter pelo menos 32 bytes e ser **igual** no usuarios-service, no api-gateway e no
+notificacao-service; se forem diferentes, todo token é recusado com `401`.
 
 ## Próximos passos possíveis
 

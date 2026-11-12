@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-notificacao
+  labels:
+    app.kubernetes.io/name: postgres-notificacao
+    app.kubernetes.io/part-of: distrischool
+spec:
+  selector:
+    app.kubernetes.io/name: postgres-notificacao
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
