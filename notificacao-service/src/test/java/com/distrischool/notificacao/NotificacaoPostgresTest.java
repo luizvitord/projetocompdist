@@ -7,6 +7,8 @@ import com.distrischool.notificacao.notificacao.NotificacaoResponse;
 import com.distrischool.notificacao.notificacao.NotificacaoService;
 import com.distrischool.notificacao.notificacao.Perfil;
 import com.distrischool.notificacao.notificacao.TipoNotificacao;
+import com.distrischool.notificacao.temporeal.EntregadorTempoReal;
+import com.distrischool.notificacao.temporeal.NotificacaoCriadaMensagem;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -30,6 +33,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * O serviço inteiro contra um PostgreSQL 17 real (Testcontainers), com o test binder no lugar do
@@ -67,6 +73,10 @@ class NotificacaoPostgresTest {
 
     @Autowired
     private InputDestination kafka;
+
+    /** O entregador real, observado: sem sessões WebSocket abertas, ele só descarta os avisos. */
+    @MockitoSpyBean
+    private EntregadorTempoReal entregador;
 
     @Autowired
     private NotificacaoService notificacaoService;
@@ -124,6 +134,27 @@ class NotificacaoPostgresTest {
         // Outro evento (correção da nota): novas notificações
         publicar(KafkaTopics.GRADE_POSTED, "12", GRADE_POSTED.formatted("2026-10-25T09:00:00Z"));
         assertThat(linhas()).isEqualTo(8);
+    }
+
+    @Test
+    void cadaNotificacaoGravadaGeraUmAvisoInternoQueChegaAoEntregador() {
+        // No test binder, como no Kafka, o que é publicado em notificacao.criada volta para o
+        // consumidor desse tópico: StreamBridge -> notificacao.criada -> EntregadorTempoReal
+        String evento = GRADE_POSTED.formatted("2026-10-24T11:00:00Z");
+        publicar(KafkaTopics.GRADE_POSTED, "12", evento);
+
+        Long idDoResponsavel = notificacoesDe(RESPONSAVEL_1).get(0).id();
+        verify(entregador).entregar(new NotificacaoCriadaMensagem(idDoResponsavel, Perfil.RESPONSAVEL, 1L));
+        verify(entregador, times(4)).entregar(any());
+
+        // Reentrega: nada foi gravado, então nenhum aviso novo
+        publicar(KafkaTopics.GRADE_POSTED, "12", evento);
+        verify(entregador, times(4)).entregar(any());
+
+        // A coordenação não tem referência
+        publicar(KafkaTopics.STUDENT_CREATED, "1", STUDENT_CREATED);
+        Long idDaCoordenacao = notificacoesDe(Destinatario.admin()).get(0).id();
+        verify(entregador).entregar(new NotificacaoCriadaMensagem(idDaCoordenacao, Perfil.ADMIN, null));
     }
 
     @Test

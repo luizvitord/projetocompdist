@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static com.distrischool.notificacao.notificacao.NotificacaoSpecifications.comId;
 import static com.distrischool.notificacao.notificacao.NotificacaoSpecifications.doDestinatario;
@@ -87,6 +88,12 @@ public class NotificacaoService {
             filtro = filtro.and(naoLida());
         }
         return repository.findAll(filtro, pageable).map(NotificacaoResponse::from);
+    }
+
+    /** Vazio se a notificação não existir ou for de outro destinatário. */
+    @Transactional(readOnly = true)
+    public Optional<NotificacaoResponse> buscarPorId(Destinatario destinatario, Long id) {
+        return repository.findOne(comId(id).and(doDestinatario(destinatario))).map(NotificacaoResponse::from);
     }
 
     @Transactional(readOnly = true)

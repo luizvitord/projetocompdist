@@ -1,6 +1,10 @@
 package com.distrischool.notificacao.evento;
 
 import com.distrischool.notificacao.common.MensagemInvalidaException;
+import com.distrischool.notificacao.notificacao.Perfil;
+import com.distrischool.notificacao.temporeal.EntregadorTempoReal;
+import com.distrischool.notificacao.temporeal.NotificacaoCriadaMensagem;
+import com.distrischool.notificacao.temporeal.TempoRealStreamConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,13 +15,13 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.cloud.function.cloudevent.CloudEventsFunctionExtensionConfiguration;
 import org.springframework.cloud.function.context.config.ContextFunctionCatalogAutoConfiguration;
-import org.springframework.cloud.stream.function.FunctionConfiguration;
 import org.springframework.cloud.stream.binder.kafka.properties.KafkaConsumerProperties;
 import org.springframework.cloud.stream.binder.kafka.properties.KafkaExtendedBindingProperties;
 import org.springframework.cloud.stream.binder.test.InputDestination;
 import org.springframework.cloud.stream.binder.test.TestChannelBinderConfiguration;
 import org.springframework.cloud.stream.config.BindingProperties;
 import org.springframework.cloud.stream.config.BindingServiceProperties;
+import org.springframework.cloud.stream.function.FunctionConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -54,35 +58,48 @@ import static org.mockito.Mockito.verify;
  */
 class ConsumidoresStreamTest {
 
+    private static final String NOTIFICACAO_CRIADA = "notificacao.criada";
+    private static final String BINDING_TEMPO_REAL = "entregarNotificacao-in-0";
     private static final byte[] PAYLOAD = "{\"turmaId\":12}".getBytes(StandardCharsets.UTF_8);
 
     private ConfigurableApplicationContext context;
     private ProcessadorEventos processador;
+    private EntregadorTempoReal entregador;
     private InputDestination entrada;
     private final List<ErrorMessage> erros = new CopyOnWriteArrayList<>();
 
     /**
      * Só as autoconfigurações do Stream que ligam as funções aos bindings: o contexto não tem
-     * banco, JPA nem web.
+     * banco, JPA nem web. Quem recebe as mensagens são simulações.
      */
     @Configuration
     @ImportAutoConfiguration({ContextFunctionCatalogAutoConfiguration.class,
             CloudEventsFunctionExtensionConfiguration.class, FunctionConfiguration.class})
-    static class ProcessadorSimulado {
+    static class Simulacoes {
 
         @Bean
         ProcessadorEventos processadorEventos() {
             return mock(ProcessadorEventos.class);
         }
+
+        @Bean
+        EntregadorTempoReal entregadorTempoReal() {
+            return mock(EntregadorTempoReal.class);
+        }
+    }
+
+    private static Class<?>[] configuracao() {
+        return TestChannelBinderConfiguration.getCompleteConfiguration(
+                ConsumidoresConfig.class, TempoRealStreamConfig.class, LeitorEventos.class, Simulacoes.class);
     }
 
     @BeforeEach
     void subir() {
-        context = new SpringApplicationBuilder(TestChannelBinderConfiguration.getCompleteConfiguration(
-                ConsumidoresConfig.class, ProcessadorSimulado.class))
+        context = new SpringApplicationBuilder(configuracao())
                 .web(WebApplicationType.NONE)
                 .run(esperasCurtas());
         processador = context.getBean(ProcessadorEventos.class);
+        entregador = context.getBean(EntregadorTempoReal.class);
         entrada = context.getBean(InputDestination.class);
         context.getBean("errorChannel", SubscribableChannel.class)
                 .subscribe(mensagem -> erros.add((ErrorMessage) mensagem));
@@ -118,6 +135,13 @@ class ConsumidoresStreamTest {
             }
         }
         return false;
+    }
+
+    /** Bindings de entrada dos eventos de domínio, por tópico (o do tempo real fica de fora). */
+    private static Map<String, String> bindingsDeDominio(Map<String, BindingProperties> bindings) {
+        return bindings.entrySet().stream()
+                .filter(b -> b.getKey().endsWith("-in-0") && !b.getKey().equals(BINDING_TEMPO_REAL))
+                .collect(Collectors.toMap(b -> b.getValue().getDestination(), Map.Entry::getKey));
     }
 
     @Test
@@ -192,9 +216,7 @@ class ConsumidoresStreamTest {
         KafkaExtendedBindingProperties kafka = Binder.get(context.getEnvironment())
                 .bind("spring.cloud.stream.kafka", KafkaExtendedBindingProperties.class).get();
 
-        Map<String, String> bindingPorTopico = bindings.entrySet().stream()
-                .filter(b -> b.getKey().endsWith("-in-0"))
-                .collect(Collectors.toMap(b -> b.getValue().getDestination(), Map.Entry::getKey));
+        Map<String, String> bindingPorTopico = bindingsDeDominio(bindings);
         assertThat(bindingPorTopico.keySet()).containsExactlyInAnyOrderElementsOf(KafkaTopics.TODOS);
 
         bindingPorTopico.forEach((topico, binding) -> {
@@ -214,14 +236,51 @@ class ConsumidoresStreamTest {
     @Test
     void esperasDeProducaoSaoDeUmEDoisSegundos() {
         // As propriedades reais, sem as esperas curtas deste teste
-        try (ConfigurableApplicationContext producao = new SpringApplicationBuilder(
-                TestChannelBinderConfiguration.getCompleteConfiguration(ConsumidoresConfig.class, ProcessadorSimulado.class))
+        try (ConfigurableApplicationContext producao = new SpringApplicationBuilder(configuracao())
                 .web(WebApplicationType.NONE)
                 .run("--spring.jmx.enabled=false")) {
-            producao.getBean(BindingServiceProperties.class).getBindings().forEach((binding, propriedades) -> {
-                assertThat(propriedades.getConsumer().getBackOffInitialInterval()).as(binding).isEqualTo(1000);
-                assertThat(propriedades.getConsumer().getBackOffMaxInterval()).as(binding).isEqualTo(2000);
+            Map<String, BindingProperties> bindings = producao.getBean(BindingServiceProperties.class).getBindings();
+            bindingsDeDominio(bindings).values().forEach(binding -> {
+                assertThat(bindings.get(binding).getConsumer().getBackOffInitialInterval()).as(binding).isEqualTo(1000);
+                assertThat(bindings.get(binding).getConsumer().getBackOffMaxInterval()).as(binding).isEqualTo(2000);
             });
         }
+    }
+
+    // --- tempo real: tópico interno notificacao.criada ---
+
+    @Test
+    void avisosDeNotificacaoCriadaSaoLidosEmGrupoAnonimoSemDlt() {
+        Map<String, BindingProperties> bindings = context.getBean(BindingServiceProperties.class).getBindings();
+
+        BindingProperties entradaTempoReal = bindings.get(BINDING_TEMPO_REAL);
+        assertThat(entradaTempoReal.getDestination()).isEqualTo(NOTIFICACAO_CRIADA);
+        // Sem grupo = grupo anônimo: cada réplica recebe todos os avisos (fan-out)
+        assertThat(entradaTempoReal.getGroup()).isNull();
+        assertThat(entradaTempoReal.getConsumer().getMaxAttempts()).isEqualTo(1);
+        // Nenhuma propriedade do binder Kafka (DLT) neste binding: ele nem aceita DLT em grupo anônimo
+        assertThat(context.getEnvironment().getProperty(
+                "spring.cloud.stream.kafka.bindings." + BINDING_TEMPO_REAL + ".consumer.enable-dlq")).isNull();
+
+        assertThat(bindings.get("notificacaoCriada-out-0").getDestination()).isEqualTo(NOTIFICACAO_CRIADA);
+    }
+
+    @Test
+    void avisoDeNotificacaoCriadaChegaAoEntregador() {
+        entrada.send(MessageBuilder.withPayload(
+                "{\"id\":7,\"perfil\":\"RESPONSAVEL\",\"referenciaId\":12,\"campoNovo\":true}"
+                        .getBytes(StandardCharsets.UTF_8)).build(), NOTIFICACAO_CRIADA);
+
+        verify(entregador).entregar(new NotificacaoCriadaMensagem(7L, Perfil.RESPONSAVEL, 12L));
+        assertThat(erros).isEmpty();
+    }
+
+    @Test
+    void avisoInvalidoNaoERepetido() {
+        entrada.send(MessageBuilder.withPayload("{ quebrado".getBytes(StandardCharsets.UTF_8)).build(),
+                NOTIFICACAO_CRIADA);
+
+        verify(entregador, times(0)).entregar(any());
+        assertThat(erros).hasSize(1);
     }
 }

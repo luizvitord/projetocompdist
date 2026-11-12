@@ -36,6 +36,9 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         // Swagger
                         .requestMatchers("/notificacao/**").permitAll()
+                        // Handshake do WebSocket: o navegador não envia cabeçalhos nele, então o
+                        // token é validado no frame CONNECT do STOMP (StompAutenticacaoInterceptor)
+                        .requestMatchers("/ws").permitAll()
                         .requestMatchers("/api/notificacoes/**").authenticated()
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()));
