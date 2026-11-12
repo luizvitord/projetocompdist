@@ -63,6 +63,19 @@ class SecurityConfigTest {
         assertThat(send("GET", "/actuator/health/liveness", null)).isEqualTo(200);
     }
 
+    /** Prometheus scrapes the gateway without a token; a missing registry used to turn this into 401. */
+    @Test
+    void prometheusEndpointIsOpenAndExposesHttpHistogramBuckets() throws Exception {
+        assertThat(send("GET", "/api/turmas", TestTokens.bearer("ADMIN"))).isEqualTo(200);
+
+        HttpResponse<String> metrics = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/actuator/prometheus")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(metrics.statusCode()).isEqualTo(200);
+        assertThat(metrics.body()).contains("http_server_requests_seconds_bucket");
+    }
+
     @Test
     void rejectsRequestsWithoutValidToken() throws Exception {
         assertThat(send("GET", "/api/alunos", null)).isEqualTo(401);
