@@ -218,7 +218,7 @@ Vínculo de um aluno com uma turma em um ano letivo.
     - `k8s/base/gestao-escolar-service/` (Deployment com probes do Actuator, Service, HPA)
     - ConfigMap `gestao-escolar-config`: `SERVER_PORT=8082`,
       `DB_URL=jdbc:postgresql://postgres-escolar:5432/gestao_escolar`,
-      `KAFKA_BOOTSTRAP_SERVERS=kafka:9092`,
+      `KAFKA_BOOTSTRAP_SERVERS=kafka:29092`,
       `ADMINISTRATIVA_URL=http://gestao-administrativa-service:8081`,
       `LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs`
     - Overlay do minikube: imagem `gestao-escolar-service:dev`, `imagePullPolicy: Never` e
