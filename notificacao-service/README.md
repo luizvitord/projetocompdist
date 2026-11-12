@@ -53,6 +53,11 @@ tópico, ligados pelos bindings `<função>-in-0` de `application.properties`.
   vai direto para a DLT.
 - **Offsets**: o grupo guarda o offset de cada partição. Com o serviço parado, o Kafka guarda os
   eventos; quando ele volta, lê do ponto em que parou.
+- **Reinícios**: ao desligar, os consumidores avisam o Kafka que saíram do grupo, e a réplica que
+  sobe (ou as que ficaram) assume as partições em poucos segundos. Isso precisa de ~4 s de
+  desligamento gracioso (`stop_grace_period` no Compose, `terminationGracePeriodSeconds` no
+  Kubernetes). Se a réplica for morta sem se despedir, o grupo fica parado até o
+  `session.timeout.ms` dela vencer; por isso ele foi reduzido de 45 s (padrão) para 15 s.
 - **Primeira subida**: um grupo novo começa do início dos tópicos (`earliest`), para montar o cache
   de nomes. Os eventos antigos de notas e matrículas também viram notificações e, como os tópicos
   são lidos em paralelo, algumas podem sair com o nome neutro ("disciplina #3").

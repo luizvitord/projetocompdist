@@ -1,9 +1,10 @@
-export type FeedbackVariant = 'success' | 'error' | 'warning';
+export type FeedbackVariant = 'success' | 'error' | 'warning' | 'info';
 
 const styles: Record<FeedbackVariant, string> = {
   success: 'border-emerald-300 bg-emerald-50 text-emerald-900',
   error: 'border-rose-300 bg-rose-50 text-rose-900',
-  warning: 'border-amber-300 bg-amber-50 text-amber-900'
+  warning: 'border-amber-300 bg-amber-50 text-amber-900',
+  info: 'border-sky-300 bg-sky-50 text-sky-900'
 };
 
 export function FeedbackBanner({ message, variant, onClose }: { message: string; variant: FeedbackVariant; onClose: () => void }) {

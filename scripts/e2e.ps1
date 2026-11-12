@@ -7,12 +7,15 @@
       1. Login da coordenacao (ADMIN) e uso do JWT nas chamadas seguintes.
       2. Fluxo funcional: disciplina, professor, turma com a disciplina ofertada, aluno,
          matricula, chamadas e notas; confere boletim e frequencia do aluno.
-      3. Outbox: com o Kafka parado, a criacao de turma responde rapido e o evento fica pendente
+      3. Notificacoes: cria um usuario RESPONSAVEL ligado ao aluno do fluxo, lanca uma nota e
+         confere que a notificacao NOTA_LANCADA chega a ele (grade.posted -> Kafka ->
+         notificacao-service), que so o dono a enxerga e que ela pode ser marcada como lida.
+      4. Outbox: com o Kafka parado, a criacao de turma responde rapido e o evento fica pendente
          em outbox_evento; com o Kafka de volta, o evento e publicado e a turma chega a
          turma_replica do gestao-escolar-service.
-      4. Circuit breaker: com o gestao-escolar-service parado, /api/alunos responde 503 com
+      5. Circuit breaker: com o gestao-escolar-service parado, /api/alunos responde 503 com
          ProblemDetail e o resto do gateway continua respondendo.
-      5. Rate limit do login (por ultimo): 11 logins com senha errada, o 11o recebe 429.
+      6. Rate limit do login (por ultimo): 11 logins com senha errada, o 11o recebe 429.
 
     Cada verificacao imprime [OK] ou [FALHOU]. Termina com exit 1 se algo falhar. Em qualquer
     falha ou interrupcao (Ctrl+C), o kafka e o gestao-escolar-service sao ligados de novo.
@@ -46,6 +49,8 @@ $Ctx = @{
     Token        = $null
     UltimoLogin  = [DateTime]::MinValue
     Sufixo       = (Get-Date -Format 'yyMMddHHmmss') + (Get-Random -Minimum 100 -Maximum 1000)
+    # Dados do fluxo funcional usados pela etapa de notificacoes
+    Fluxo        = $null
 }
 $Resultados = New-Object System.Collections.Generic.List[object]
 
@@ -144,11 +149,17 @@ function Invoke-Api {
         [Parameter(Mandatory = $true)][string]$Caminho,
         $Corpo = $null,
         [switch]$SemToken,
+        # Token de outro usuario; sem ele vale o da coordenacao ($Ctx.Token)
+        [string]$Token = '',
         [int]$TimeoutSec = 30
     )
     $headers = @{}
-    if (-not $SemToken -and $Ctx.Token) {
-        $headers['Authorization'] = 'Bearer ' + $Ctx.Token
+    if (-not $SemToken) {
+        if ($Token) {
+            $headers['Authorization'] = 'Bearer ' + $Token
+        } elseif ($Ctx.Token) {
+            $headers['Authorization'] = 'Bearer ' + $Ctx.Token
+        }
     }
     $parametros = @{
         Uri             = $GatewayUrl + $Caminho
@@ -238,10 +249,11 @@ function Test-ProblemDetail($Resposta, [int]$Status, [string]$Descricao) {
     Test-Condicao $Descricao $ok ('Content-Type: ' + $Resposta.ContentType + '; corpo: ' + $Resposta.Texto)
 }
 
-function Invoke-Login([string]$Senha) {
+# Todo login do script passa por aqui: a etapa do rate limit conta o tempo desde o ultimo
+function Invoke-Login([string]$Senha, [string]$Email = $EmailCoordenacao) {
     $Ctx.UltimoLogin = Get-Date
     return Invoke-Api -Metodo POST -Caminho '/api/auth/login' -SemToken `
-        -Corpo @{ email = $EmailCoordenacao; senha = $Senha }
+        -Corpo @{ email = $Email; senha = $Senha }
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -502,7 +514,123 @@ try {
             Test-Valor 'Frequencia: percentual na disciplina' 75.00 $fd.frequencia.percentual
             Test-Valor 'Frequencia: abaixo do minimo' $false $fd.frequencia.abaixoDoMinimo
             Test-Valor 'Frequencia: percentual geral' 75.00 $f.geral.percentual
+
+            $Ctx.Fluxo = @{
+                AlunoId = $alunoId; NumeroMatricula = $numeroMatricula; TurmaId = $turmaId
+                DisciplinaId = $disciplinaId; Hoje = $hojeTexto
+            }
         } | Out-Null
+
+        if ($null -ne $Ctx.Fluxo) {
+            Invoke-Etapa 'Notificacoes' {
+                $s = $Ctx.Sufixo
+                $fluxo = $Ctx.Fluxo
+                $alunoId = $fluxo.AlunoId
+
+                $semToken = Invoke-Api -Metodo GET -Caminho '/api/notificacoes' -SemToken
+                Test-Status $semToken 401 'GET /api/notificacoes sem token'
+
+                # Usuario RESPONSAVEL ligado ao aluno do fluxo: o referenciaId e o id do aluno
+                $emailResponsavel = 'resp.e2e.' + $s + '@distrischool.com'
+                $senhaResponsavel = 'segredo-e2e'
+                $r = Invoke-Api -Metodo POST -Caminho '/api/usuarios' -Corpo @{
+                    nome = 'Responsavel E2E ' + $s; email = $emailResponsavel; senha = $senhaResponsavel
+                    perfil = 'RESPONSAVEL'; referenciaId = $alunoId
+                }
+                Assert-Status $r 201 'POST /api/usuarios (RESPONSAVEL do aluno)'
+                $usuarioId = $r.Json.id
+                Test-Valor 'Usuario ligado ao aluno (referenciaId)' $alunoId $r.Json.referenciaId
+
+                try {
+                    # Logo depois de subir (ou de o Kafka reiniciar), os consumidores do
+                    # notificacao-service ainda estao entrando no grupo; os eventos so sao lidos
+                    # quando o grupo fica Stable. Espera isso para medir so o caminho da notificacao.
+                    $limite = (Get-Date).AddSeconds(90)
+                    $cron = [System.Diagnostics.Stopwatch]::StartNew()
+                    $estavel = $false
+                    $estado = ''
+                    while (-not $estavel -and (Get-Date) -lt $limite) {
+                        $grupo = Invoke-Compose @('exec', '-T', 'kafka', '/opt/kafka/bin/kafka-consumer-groups.sh',
+                            '--bootstrap-server', 'kafka:29092', '--describe', '--group', 'notificacao-service', '--state')
+                        $estado = (@($grupo.Saida | Where-Object { $_ -match 'notificacao-service' }) | Select-Object -Last 1)
+                        $estavel = ([string]$estado -match '\sStable\s+[1-9]')
+                        if (-not $estavel) { Start-Sleep -Seconds 2 }
+                    }
+                    Assert-Condicao 'Consumidores do notificacao-service prontos (grupo Stable no Kafka)' $estavel `
+                        ('apos ' + [math]::Round($cron.Elapsed.TotalSeconds, 1) + ' s (limite 90 s); estado: ' + (Format-Valor $estado))
+
+                    # Nova nota: 9,5 em uma atividade do 2o bimestre (nao muda o boletim ja conferido)
+                    $r = Invoke-Api -Metodo POST -Caminho '/api/avaliacoes' -Corpo @{
+                        turmaId = $fluxo.TurmaId; disciplinaId = $fluxo.DisciplinaId; bimestre = 2; tipo = 'ATIVIDADE'
+                        descricao = 'ATIVIDADE NOTIFICACAO E2E ' + $s; peso = 1; notaMaxima = 10; data = $fluxo.Hoje
+                    }
+                    Assert-Status $r 201 'POST /api/avaliacoes (ATIVIDADE para a notificacao)'
+                    $r = Invoke-Api -Metodo POST -Caminho ('/api/avaliacoes/' + $r.Json.id + '/notas') `
+                        -Corpo @(@{ matriculaAluno = $fluxo.NumeroMatricula; valor = 9.5 })
+                    Assert-Status $r 201 'POST /api/avaliacoes/{id}/notas (nota 9,5)'
+
+                    $login = Invoke-Login $senhaResponsavel $emailResponsavel
+                    Assert-Status $login 200 ('POST /api/auth/login com ' + $emailResponsavel)
+                    Test-Valor 'Perfil do usuario logado' 'RESPONSAVEL' $login.Json.usuario.perfil
+                    $tokenResponsavel = [string]$login.Json.token
+
+                    # grade.posted -> outbox -> Kafka -> notificacao-service: assincrono, ate ~15 s.
+                    # A mensagem termina com a nota no formato brasileiro (": 9,5")
+                    $limite = (Get-Date).AddSeconds(15)
+                    $cron = [System.Diagnostics.Stopwatch]::StartNew()
+                    $notificacao = $null
+                    $lista = $null
+                    while ($null -eq $notificacao -and (Get-Date) -lt $limite) {
+                        $lista = Invoke-Api -Metodo GET -Caminho '/api/notificacoes?size=50' -Token $tokenResponsavel
+                        if ($lista.Status -eq 200) {
+                            $notificacao = @($lista.Json.content) | Where-Object {
+                                $_.tipo -eq 'NOTA_LANCADA' -and ([string]$_.mensagem).EndsWith(': 9,5')
+                            } | Select-Object -First 1
+                        }
+                        if ($null -eq $notificacao) { Start-Sleep -Milliseconds 500 }
+                    }
+                    $detalhe = 'apos ' + [math]::Round($cron.Elapsed.TotalSeconds, 1) + ' s (limite 15 s)'
+                    if ($null -eq $notificacao -and $null -ne $lista) { $detalhe += '; ultima resposta: ' + (Get-Resumo $lista) }
+                    Assert-Condicao 'GET /api/notificacoes do responsavel traz a notificacao NOTA_LANCADA da nota 9,5' `
+                        ($null -ne $notificacao) $detalhe
+                    Test-Condicao 'Notificacao cita a disciplina pelo nome (cache do schedule.updated)' `
+                        ([string]$notificacao.mensagem -like ('*Disciplina E2E ' + $s + '*')) ('id: ' + $notificacao.id)
+                    Test-Valor 'Notificacao aponta para o aluno' ('/alunos/' + $alunoId) $notificacao.link
+                    Test-Valor 'Notificacao chega como nao lida' $false $notificacao.lida
+
+                    $r = Invoke-Api -Metodo GET -Caminho '/api/notificacoes/nao-lidas/contagem' -Token $tokenResponsavel
+                    Assert-Status $r 200 'GET /api/notificacoes/nao-lidas/contagem do responsavel'
+                    $naoLidas = [int]$r.Json.total
+                    Test-Condicao 'Contagem de nao lidas inclui a notificacao' ($naoLidas -ge 1) ('total: ' + $naoLidas)
+
+                    # So o dono: a coordenacao nao ve nem altera a notificacao do responsavel
+                    $r = Invoke-Api -Metodo GET -Caminho '/api/notificacoes?size=50'
+                    Test-Status $r 200 'GET /api/notificacoes da coordenacao'
+                    $vazou = @(@($r.Json.content) | Where-Object { $_.id -eq $notificacao.id })
+                    Test-Condicao 'Lista da coordenacao nao traz a notificacao do responsavel' ($vazou.Count -eq 0) `
+                        ('notificacoes na lista da coordenacao: ' + @($r.Json.content).Count)
+                    $r = Invoke-Api -Metodo PATCH -Caminho ('/api/notificacoes/' + $notificacao.id + '/lida')
+                    Test-Status $r 404 'PATCH /api/notificacoes/{id}/lida pela coordenacao (nao e a dona)'
+
+                    $r = Invoke-Api -Metodo PATCH -Caminho ('/api/notificacoes/' + $notificacao.id + '/lida') `
+                        -Token $tokenResponsavel
+                    Test-Status $r 200 'PATCH /api/notificacoes/{id}/lida pelo responsavel'
+                    Test-Valor 'Notificacao marcada como lida' $true $r.Json.lida
+
+                    $r = Invoke-Api -Metodo GET -Caminho '/api/notificacoes/nao-lidas/contagem' -Token $tokenResponsavel
+                    Test-Valor 'Contagem de nao lidas diminui em 1' ($naoLidas - 1) $r.Json.total
+
+                    $r = Invoke-Api -Metodo POST -Caminho '/api/notificacoes/lidas' -Token $tokenResponsavel
+                    Test-Status $r 200 'POST /api/notificacoes/lidas pelo responsavel'
+                    $r = Invoke-Api -Metodo GET -Caminho '/api/notificacoes/nao-lidas/contagem' -Token $tokenResponsavel
+                    Test-Valor 'Contagem de nao lidas zera' 0 $r.Json.total
+                } finally {
+                    # O usuario de teste nao fica ativo (exclusao logica)
+                    $r = Invoke-Api -Metodo DELETE -Caminho ('/api/usuarios/' + $usuarioId)
+                    Test-Status $r 204 'DELETE /api/usuarios/{id} (desativa o responsavel de teste)'
+                }
+            } | Out-Null
+        }
 
         Invoke-Etapa 'Outbox com o Kafka fora do ar' {
             $s = $Ctx.Sufixo

@@ -172,6 +172,10 @@ services:
   notificacao-service:
     build: ./notificacao-service
     restart: unless-stopped
+    # Tempo para o desligamento gracioso (~4 s): os consumidores avisam o Kafka que sairam do grupo.
+    # Se o container for morto antes disso, o grupo fica parado ate o session timeout dos membros
+    # antigos vencer, e as notificacoes atrasam depois de cada reinicio.
+    stop_grace_period: 30s
     environment:
       DB_URL: jdbc:postgresql://postgres-notificacao:5432/notificacao
       DB_USERNAME: notificacao

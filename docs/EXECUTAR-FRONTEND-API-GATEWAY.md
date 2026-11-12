@@ -148,6 +148,26 @@ Senha: 123456
 
 O token fica no `sessionStorage` (some ao fechar a aba) e expira em 8 horas; depois disso, ou se o gateway responder `401`, o frontend volta para a tela de login. Perfis e permissões: [AUTENTICACAO.md](AUTENTICACAO.md).
 
+## Notificações em tempo real
+
+O sino no topo do portal mostra quantas notificações o usuário ainda não leu. Ao clicar, o painel
+lista as últimas, com o link para a tela relacionada e as ações "Marcar como lida" e "Marcar todas
+como lidas". Quando chega uma notificação nova, aparece um aviso rápido no canto da tela.
+
+- Depois do login, o frontend abre um WebSocket (STOMP) em `/ws`, na mesma origem, com o token no
+  frame `CONNECT`. Se a conexão cai, ele tenta de novo sozinho, com espera crescente (1 s até 30 s).
+- A cada conexão ele busca a contagem de não lidas pela API REST, para não perder o que chegou
+  enquanto estava desconectado.
+- A conexão é fechada no logout e quando o token expira.
+
+Para ver funcionando com duas abas:
+
+1. Como coordenação, cadastre um usuário `RESPONSAVEL` com `referenciaId` igual ao id de um aluno
+   matriculado (`POST /api/usuarios`, exemplo em [AUTENTICACAO.md](AUTENTICACAO.md)).
+2. Em uma janela anônima, entre como esse responsável.
+3. Na primeira aba, lance uma nota para o aluno em "Avaliações e notas". O sino da outra aba
+   aumenta e o aviso aparece em cerca de um segundo.
+
 ## Verificações rápidas
 
 Health check do gateway:

@@ -5,6 +5,8 @@ type FeedbackContextValue = {
   showSuccess: (message: string) => void;
   showError: (message: string) => void;
   showWarning: (message: string) => void;
+  /** Aviso neutro, como a chegada de uma notificação. */
+  showInfo: (message: string) => void;
 };
 
 const FeedbackContext = createContext<FeedbackContextValue | null>(null);
@@ -14,7 +16,8 @@ export function FeedbackProvider({ children }: PropsWithChildren) {
   const value = useMemo<FeedbackContextValue>(() => ({
     showSuccess: (message) => setFeedback({ message, variant: 'success' }),
     showError: (message) => setFeedback({ message, variant: 'error' }),
-    showWarning: (message) => setFeedback({ message, variant: 'warning' })
+    showWarning: (message) => setFeedback({ message, variant: 'warning' }),
+    showInfo: (message) => setFeedback({ message, variant: 'info' })
   }), []);
   return <FeedbackContext.Provider value={value}>
     {feedback ? <FeedbackBanner {...feedback} onClose={() => setFeedback(null)} /> : null}
