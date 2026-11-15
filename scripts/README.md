@@ -60,12 +60,13 @@ RESPONSAVEL) os criam na primeira vez. Por isso qualquer combinação de `-Secoe
 
 Rodam nesta ordem. Os erros esperados (400, 404, 409, 503) sempre conferem o corpo `ProblemDetail`
 (`application/problem+json` com `status` e `detail`; nos 400 de validação, a lista `erros` com os
-campos). Os 401 e 403 do gateway vêm sem corpo, com `WWW-Authenticate: Bearer` no 401.
+campos). Os 403 do gateway também são ProblemDetail; os 401 vêm sem corpo, com
+`WWW-Authenticate: Bearer`.
 
 | Id | Endpoints | O que verifica |
 |---|---|---|
 | `login` | `POST /api/auth/login`, qualquer rota `/api` | Login da coordenação (token, perfil, expiração); 401 sem token, com a assinatura adulterada, com o payload alterado e com token mal formado; senha errada (401, sem token); campos vazios (400) |
-| `perfis` | `/api/usuarios` (CRUD), rotas de escrita de cada serviço, `/api/notificacoes` | CRUD de usuários (Location, sem senha na resposta, email duplicado na criação e na edição, validação, 404, exclusão lógica que some da listagem e impede o login); tabela de permissões do `docs/AUTENTICACAO.md` com usuários PROFESSOR, ALUNO e RESPONSAVEL reais: PROFESSOR lança notas, corrige e faz chamada, recebe 403 nos cadastros e em `/api/usuarios`; ALUNO e RESPONSAVEL recebem 403 em toda escrita e usam as próprias notificações |
+| `perfis` | `/api/usuarios` (CRUD), rotas de escrita de cada serviço, consultas de ALUNO e RESPONSAVEL, `/api/notificacoes` | CRUD de usuários (Location, sem senha na resposta, email duplicado na criação e na edição, validação, 404, exclusão lógica que some da listagem e impede o login); tabela de permissões do `docs/AUTENTICACAO.md` com usuários PROFESSOR, ALUNO e RESPONSAVEL reais: PROFESSOR lança notas, corrige e faz chamada, recebe 403 nos cadastros e em `/api/usuarios`; ALUNO e RESPONSAVEL recebem 403 em toda escrita, leem o próprio aluno, boletim, frequência e matrículas (200, com o id dele no corpo e só as matrículas dele), recebem 403 com ProblemDetail nas listagens (alunos, turmas, professores, técnicos, matrículas sem `alunoId`), nos dados de outro aluno, com `alunoId` repetido e com `/api/alunos/{id}abc`, e usam as próprias notificações; uma conta ALUNO sem `referenciaId` recebe 403 no boletim e 200 nas notificações |
 | `infra` | `/actuator/health`, `/{servico}/v3/api-docs`, `/{servico}/swagger-ui.html`, Prometheus, Grafana | Health do gateway; todos os containers rodando e saudáveis; OpenAPI e Swagger UI de `administrativa`, `escolar`, `usuarios` e `notificacao` pelo gateway; um alvo UP por serviço no Prometheus e as 6 regras de alerta sem erro; health do Grafana, dashboard de visão geral provisionado e datasource respondendo |
 | `administrativa` | `/api/disciplinas`, `/api/professores`, `/api/tecnicos`, `/api/turmas` (+ ofertas e professores) | CRUD com validação, duplicados (409) e filtros de cada cadastro; exclusão lógica de disciplinas e técnicos; CPF inválido e duplicado sem repetir o CPF no erro; `dataAdmissao` futura; oferta com atribuição automática do professor; disciplina inativa não pode ser ofertada; e, **pela API do gestao-escolar**: código novo da turma na réplica, oferta retirada recusa chamada e avaliação (409), turma excluída recusa matrícula (409) mantendo o histórico, disciplina renomeada chega à réplica e ao texto da notificação |
 | `alunos` | `/api/alunos` | CRUD; número de matrícula no formato ano + 6 dígitos, crescente; `dataNascimento` futura e outras validações; filtros `nome`, `matricula` (exato) e `turmaId` (só matrículas ATIVA); DELETE com matrícula (409) e sem (204) |
@@ -86,10 +87,10 @@ campos). Os 401 e 403 do gateway vêm sem corpo, com `WWW-Authenticate: Bearer` 
 
 ### `[AVISO]` esperados
 
-ALUNO e RESPONSAVEL conseguem fazer GET em qualquer `/api/**` (dados de outros alunos inclusive).
-É uma falha de autorização conhecida e ainda não corrigida, registrada como `[AVISO]` na seção
-`perfis` (7 rotas para cada perfil). Se uma dessas rotas passar a responder 403, a verificação vira
-`[OK]`.
+Nenhum: uma execução completa termina com 0 falhas e 0 avisos. O `[AVISO]` continua disponível
+para comportamentos conhecidos que não devem contar como falha. A antiga falha de autorização
+(ALUNO e RESPONSAVEL lendo qualquer `/api/**`) foi corrigida no gateway e hoje é conferida como
+verificação normal na seção `perfis`.
 
 ### Detalhes de implementação
 

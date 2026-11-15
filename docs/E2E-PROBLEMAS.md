@@ -4,7 +4,7 @@ Divergências entre o comportamento documentado e o real, encontradas ao escreve
 `scripts/e2e.ps1` (validado em 15/11/2026). O código das aplicações não foi alterado e nenhuma
 verificação foi adaptada para aceitar um comportamento diferente do documentado.
 
-Nenhuma regra de negócio, cálculo ou status HTTP documentado divergiu: as 604 verificações passam.
+Nenhuma regra de negócio, cálculo ou status HTTP documentado divergiu: as 633 verificações passam, sem nenhum `[AVISO]`.
 As divergências abaixo são de documentação desatualizada; as observações no fim são
 comportamentos que a documentação não cobre.
 
@@ -52,12 +52,12 @@ do caminho (`/api/usuarios/{id}`).
 (`ServletUriComponentsBuilder` nos controllers), e o `api-gateway` (Spring Cloud Gateway Server
 MVC) não repassa o `Host` original nem cabeçalhos `X-Forwarded-*` que os serviços usem.
 
-### 401 e 403 do gateway sem corpo `ProblemDetail`
+### 401 do gateway sem corpo `ProblemDetail`
 
-Os 401 e 403 vêm do Spring Security do gateway, sem corpo (o 401 traz
-`WWW-Authenticate: Bearer ...`). Todos os outros erros da API são `ProblemDetail`, inclusive o 401
-de senha errada (do `usuarios-service`) e o 429 do rate limit. O `docs/AUTENTICACAO.md` só fala
-dos status, então o e2e confere status e `WWW-Authenticate`.
+O 401 vem do Spring Security do gateway, sem corpo, com `WWW-Authenticate: Bearer ...`. Todos os
+outros erros da API são `ProblemDetail`, inclusive o 401 de senha errada (do `usuarios-service`), o
+429 do rate limit e, desde a correção da autorização de ALUNO e RESPONSAVEL, o 403 do gateway. O
+`docs/AUTENTICACAO.md` só fala do status, então o e2e confere status e `WWW-Authenticate`.
 
 ### WebSocket: sem `RECEIPT` para o `SUBSCRIBE`
 
@@ -65,8 +65,9 @@ O STOMP 1.2 prevê um frame `RECEIPT` quando o cliente manda o cabeçalho `recei
 do Spring usado pelo `notificacao-service` não responde `RECEIPT` para `SUBSCRIBE`. A documentação
 do projeto não promete isso; o e2e não depende dele.
 
-### Falha de autorização já conhecida
+### Falha de autorização de ALUNO e RESPONSAVEL (corrigida)
 
-ALUNO e RESPONSAVEL conseguem fazer GET em qualquer `/api/**`, inclusive dados de outros alunos
-(regra `GET /api/** -> authenticated` no `SecurityConfig` do gateway). Já conhecida e fora do
-escopo desta tarefa; o e2e marca cada caso como `[AVISO]`.
+ALUNO e RESPONSAVEL conseguiam fazer GET em qualquer `/api/**`, inclusive dados de outros alunos
+(regra `GET /api/** -> authenticated` no `SecurityConfig` do gateway); o e2e marcava cada caso como
+`[AVISO]`. O gateway agora só deixa esses perfis lerem o aluno ligado à conta (veja
+`docs/AUTENTICACAO.md`), e o e2e confere isso com verificações normais, sem nenhum `[AVISO]`.

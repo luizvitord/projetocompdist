@@ -23,6 +23,18 @@ Login: `coordenacao@distrischool.com` / `123456` (administrador criado pela migr
 
 `scripts/e2e.ps1` testa todas as funcionalidades de ponta a ponta pelo gateway, contra o Compose no ar: autenticação e perfis, cadastros, matrículas, frequência, notas e boletim, notificações (inclusive em tempo real), Kafka, tolerância a falhas e observabilidade. Roda no Windows PowerShell 5.1 e no PowerShell 7, leva uns 5 minutos e gera um relatório JUnit; seções, parâmetros e cobertura em [scripts/README.md](scripts/README.md).
 
+## Portal do aluno e do responsável
+
+Usuários `ALUNO` e `RESPONSAVEL` entram pelo mesmo login e vão para `/portal`: dados do aluno ligado à conta, seletor de ano letivo (pelas matrículas dele), boletim, frequência e a central de notificações. Eles não veem a navegação da coordenação, e as URLs dela redirecionam para o portal. O gateway só deixa esses perfis lerem o aluno cujo id é o `referenciaId` do token; todo o resto responde `403` ([regras](docs/AUTENTICACAO.md#aluno-e-responsavel-só-o-aluno-ligado-à-conta)).
+
+Para entrar no portal, crie pela API (como coordenação) um usuário com `referenciaId` = id de um aluno e faça login com ele:
+
+```bash
+curl -X POST http://localhost:8080/api/usuarios -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'   -d '{"nome": "Responsável da Ana", "email": "resp.ana@distrischool.com", "senha": "segredo1", "perfil": "RESPONSAVEL", "referenciaId": 12}'
+```
+
+Uma conta sem `referenciaId` vê só um aviso para procurar a coordenação.
+
 ## Notificações em tempo real
 
 O sino no topo do portal mostra as notificações do usuário logado e a contagem de não lidas; uma notificação nova chega por WebSocket (STOMP) e aparece na hora. Para ver: crie um usuário `RESPONSAVEL` ligado a um aluno (pela API, `POST /api/usuarios`), entre com ele numa janela anônima e, na janela da coordenação, lance uma nota para o aluno. O passo a passo, a arquitetura (tópicos, destinatários, idempotência, DLT, fan-out entre réplicas e por que o WebSocket não passa pelo gateway) estão em [docs/NOTIFICACOES.md](docs/NOTIFICACOES.md).

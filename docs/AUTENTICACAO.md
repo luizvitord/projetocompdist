@@ -61,17 +61,60 @@ recusa a conexão. Depois de conectado, o cliente só consegue assinar a própri
 | Rota | ADMIN | PROFESSOR | ALUNO | RESPONSAVEL |
 |---|:-:|:-:|:-:|:-:|
 | `POST /api/auth/login` | livre | livre | livre | livre |
-| Consultas (`GET /api/...`) | ✔ | ✔ | ✔ | ✔ |
+| Consultas (`GET /api/...`), exceto `/api/usuarios` | ✔ | ✔ | só as da tabela abaixo | só as da tabela abaixo |
 | Lançar notas e frequência (`/api/avaliacoes`, `/api/notas`, `/api/frequencias`) | ✔ | ✔ | | |
 | Demais alterações (alunos, turmas, matrículas, professores...) | ✔ | | | |
 | Administração de usuários (`/api/usuarios`) | ✔ | | | |
-| Notificações do próprio usuário (`/api/notificacoes`, todos os métodos) | ✔ | ✔ | ✔ | ✔ |
+| Notificações do próprio usuário (`/api/notificacoes/**`, todos os métodos) | ✔ | ✔ | ✔ | ✔ |
 
 As regras ficam em [`SecurityConfig`](../api-gateway/src/main/java/com/distrischool/api_gateway/config/SecurityConfig.java).
 
+### ALUNO e RESPONSAVEL: só o aluno ligado à conta
+
 O campo `referenciaId` do usuário liga a conta ao professor (PROFESSOR) ou ao aluno (ALUNO e
-RESPONSAVEL) nos outros serviços. Ele já vai no token e permite, numa próxima etapa, restringir o
-aluno ao próprio boletim ou o professor às próprias turmas.
+RESPONSAVEL) nos outros serviços, e vai no token. Para ALUNO e RESPONSAVEL, o gateway usa uma
+**lista de permissões** (allow-list): tudo o que não está nela responde `403`, inclusive GET.
+
+| Requisição | Condição |
+|---|---|
+| `GET /api/alunos/{id}` | `{id}` == `referenciaId` |
+| `GET /api/alunos/{id}/boletim` | `{id}` == `referenciaId` |
+| `GET /api/frequencias/alunos/{id}` | `{id}` == `referenciaId` |
+| `GET /api/matriculas` | parâmetro `alunoId` presente uma única vez e igual a `referenciaId`; além dele, só `anoLetivo`, `status` e a paginação (`page`, `size`, `sort`) |
+| `/api/notificacoes/**` | qualquer método; o `notificacao-service` filtra pelo dono do token |
+| `POST /api/auth/login` | livre |
+
+- **Token sem `referenciaId`** (ou com um valor que não é número): só notificações e login.
+- **Como o id é comparado**
+  ([`LeituraPorPerfilAuthorizationManager`](../api-gateway/src/main/java/com/distrischool/api_gateway/config/LeituraPorPerfilAuthorizationManager.java)):
+  o caminho, como chegou e sem decodificar, precisa casar **inteiro** com a rota, e o id precisa ser
+  um inteiro positivo sem zeros à esquerda, igual ao `referenciaId`. Por isso `/api/alunos/12abc`,
+  `/api/alunos/012`, `/api/alunos/%31%32` e `/api/alunos/12/` (barra final) não passam. Antes disso,
+  o firewall do Spring Security recusa caminhos com `..`, `//`, `;`, `%2F` ou `%2E` (de qualquer
+  perfil), então `/api/alunos/12/../13` nunca chega a ser lido como outro aluno.
+- **Matrículas**: `alunoId=12&alunoId=13` (parâmetro repetido) e a listagem sem `alunoId` são
+  recusadas. Os outros filtros aceitos só restringem o resultado (o serviço combina os filtros com
+  E), então não ampliam a consulta para outros alunos. Um `turmaId` junto é recusado.
+- ADMIN e PROFESSOR continuam consultando tudo. Restringir o PROFESSOR às próprias turmas é um
+  próximo passo.
+
+O portal (`/portal` no frontend) usa só essas rotas; veja o [README](../README.md#portal-do-aluno-e-do-responsável).
+
+### Formato do 403
+
+Todo `403` do gateway sai como ProblemDetail (`application/problem+json`), como os `503` e `429`.
+O de perfil sem permissão mantém o `WWW-Authenticate: Bearer error="insufficient_scope", ...` do
+resource server:
+
+```json
+{"type": "about:blank", "title": "Acesso negado", "status": 403,
+ "detail": "O seu perfil não tem permissão para acessar este recurso.", "instance": "/api/alunos/13"}
+```
+
+Um caminho recusado pelo firewall também responde `403`, com o `detail` "O caminho da requisição
+não é permitido." (antes, virava um `401` vindo do `/error`, ou um `400` do Tomcat no caso do
+`%2F`). Sem token válido, a resposta continua `401` sem corpo, com
+`WWW-Authenticate: Bearer`.
 
 ## Conteúdo do token
 
@@ -128,4 +171,4 @@ notificacao-service; se forem diferentes, todo token é recusado com `401`.
 - Criar a conta automaticamente quando um aluno ou professor for cadastrado (consumindo
   `student.created` do Kafka).
 - Tela de administração de usuários no frontend.
-- Regras finas nos serviços usando o `referenciaId` (aluno vê só o próprio boletim).
+- Restringir o PROFESSOR às próprias turmas usando o `referenciaId`.
