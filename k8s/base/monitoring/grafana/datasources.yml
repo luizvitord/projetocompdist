@@ -1,0 +1,16 @@
+# Datasource do Grafana, o mesmo no Docker Compose e no Kubernetes: nos dois ambientes o Prometheus
+# responde pelo nome "prometheus" (container do Compose / Service do Kubernetes).
+# O uid fixo e o que o dashboard referencia.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # Igual ao intervalo de coleta: o $__rate_interval dos paineis parte dele
+      timeInterval: 5s

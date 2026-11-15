@@ -1,0 +1,13 @@
+# Carrega os dashboards da pasta montada em /var/lib/grafana/dashboards (volume no Compose,
+# ConfigMap no Kubernetes). Alteracoes feitas pela interface nao sao salvas: edite o JSON.
+apiVersion: 1
+
+providers:
+  - name: distrischool
+    folder: DistriSchool
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

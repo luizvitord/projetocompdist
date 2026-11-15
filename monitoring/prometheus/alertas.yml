@@ -1,0 +1,84 @@
+# Regras de alerta do DistriSchool. Aparecem em http://localhost:9090/alerts (nao ha Alertmanager:
+# os alertas so ficam visiveis no proprio Prometheus).
+#
+# Os nomes das metricas foram conferidos na saida real de /actuator/prometheus dos servicos
+# (docs/MONITORAMENTO.md). O rotulo "servico" vem da configuracao de coleta.
+groups:
+  - name: distrischool
+    rules:
+      - alert: ServicoFora
+        expr: up == 0
+        for: 1m
+        labels:
+          severidade: critica
+        annotations:
+          resumo: "{{ $labels.servico }} fora do ar"
+          descricao: "O alvo {{ $labels.instance }} nao responde a coleta ha mais de 1 minuto."
+
+      # p95 de todas as replicas juntas, sem os endpoints do Actuator (coleta e probes)
+      - alert: LatenciaP95Alta
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, servico) (rate(http_server_requests_seconds_bucket{uri!~"/actuator.*"}[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severidade: aviso
+        annotations:
+          resumo: "Latencia p95 de {{ $labels.servico }} acima de 1 s"
+          descricao: "p95 atual: {{ $value | humanizeDuration }}."
+
+      - alert: TaxaErros5xxAlta
+        expr: |
+          sum by (servico) (rate(http_server_requests_seconds_count{status=~"5..", uri!~"/actuator.*"}[5m]))
+            /
+          sum by (servico) (rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[5m]))
+            > 0.05
+        for: 5m
+        labels:
+          severidade: critica
+        annotations:
+          resumo: "Mais de 5% de erros 5xx em {{ $labels.servico }}"
+          descricao: "Taxa atual: {{ $value | humanizePercentage }}."
+
+      # O gauge vale 1 no estado atual do circuit breaker e 0 nos outros
+      - alert: CircuitBreakerAberto
+        expr: max by (servico, name) (resilience4j_circuitbreaker_state{state=~"open|forced_open"}) == 1
+        labels:
+          severidade: aviso
+        annotations:
+          resumo: "Circuit breaker {{ $labels.name }} aberto em {{ $labels.servico }}"
+          descricao: "As chamadas para {{ $labels.name }} estao sendo recusadas sem tentar o destino."
+
+      # Todas as replicas leem a mesma tabela outbox_evento: max, e nao soma
+      - alert: OutboxAcumulada
+        expr: max by (servico) (outbox_eventos_pendentes) > 100
+        for: 5m
+        labels:
+          severidade: aviso
+        annotations:
+          resumo: "Outbox de {{ $labels.servico }} com {{ $value }} eventos pendentes"
+          descricao: "O OutboxRelay nao esta conseguindo publicar no Kafka."
+
+      # Duas fontes de lag, porque os consumidores usam bibliotecas diferentes:
+      # - notificacao-service (Spring Cloud Stream): lag por grupo e topico calculado pelo binder
+      #   (todas as replicas enxergam o mesmo lag do grupo: max, e nao soma)
+      # - gestao-escolar-service (Spring Kafka): lag atual de cada particao, medido pelo cliente; cada
+      #   particao pertence a uma replica, entao a soma e o lag do grupo. O grupo vem do client_id
+      #   (consumer-<grupo>-<n>). O topico aparece duas vezes (schedule.updated e schedule_updated):
+      #   so a forma com ponto entra. O records_lag_max nao serve: vira NaN depois que o consumidor
+      #   reinicia.
+      - alert: LagConsumidorAlto
+        expr: |
+          max by (servico, group, topic) (spring_cloud_stream_binder_kafka_offset) > 1000
+          or
+          sum by (servico, group, topic) (
+            label_replace(kafka_consumer_fetch_manager_records_lag{servico="gestao-escolar-service", topic=~".+[.].+"},
+              "group", "$1", "client_id", "consumer-(.+)-[0-9]+")
+          ) > 1000
+        for: 5m
+        labels:
+          severidade: aviso
+        annotations:
+          resumo: "Grupo {{ $labels.group }} de {{ $labels.servico }} com {{ $value }} mensagens atrasadas"
+          descricao: "O consumidor nao acompanha o ritmo do topico {{ $labels.topic }}."

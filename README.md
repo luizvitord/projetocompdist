@@ -16,6 +16,8 @@ Para a pilha completa em containers: `docker compose up --build`. O portal fica 
 
 Para desenvolvimento do frontend: inicie a infraestrutura e os serviços, depois execute `cd frontend && npm run dev`. O Vite encaminha `/api` exclusivamente para o gateway.
 
+Monitoramento: o Compose também sobe o Prometheus em `http://localhost:9090` (alvos em `/targets`, alertas em `/alerts`) e o Grafana em `http://localhost:3001` (`admin` / `distrischool`), já com o dashboard **DistriSchool — Visão geral** (throughput, latência p50/p95/p99, erros, réplicas, JVM, HikariCP, circuit breakers, outbox, lag do Kafka e notificações). Detalhes em [docs/MONITORAMENTO.md](docs/MONITORAMENTO.md).
+
 Login: `coordenacao@distrischool.com` / `123456` (administrador criado pela migration do `usuarios-service`). O login devolve um JWT que o API Gateway exige em todas as rotas `/api`; perfis e permissões estão em [docs/AUTENTICACAO.md](docs/AUTENTICACAO.md).
 
 ## Kubernetes
