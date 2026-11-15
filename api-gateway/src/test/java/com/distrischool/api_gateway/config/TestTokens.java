@@ -24,14 +24,26 @@ final class TestTokens {
         return "Bearer " + token(perfil, SECRET, Instant.now().plus(Duration.ofHours(1)));
     }
 
+    /** Token whose {@code referenciaId} claim is the given value (omitted when null). */
+    static String bearer(String perfil, Object referenciaId) {
+        return "Bearer " + token(perfil, referenciaId, SECRET, Instant.now().plus(Duration.ofHours(1)));
+    }
+
     static String token(String perfil, String secret, Instant expiresAt) {
+        return token(perfil, null, secret, expiresAt);
+    }
+
+    static String token(String perfil, Object referenciaId, String secret, Instant expiresAt) {
         var key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
                 .subject("1")
                 .issuedAt(expiresAt.minus(Duration.ofHours(8)))
                 .expiresAt(expiresAt)
-                .claim("perfil", perfil)
-                .build();
+                .claim("perfil", perfil);
+        if (referenciaId != null) {
+            builder.claim("referenciaId", referenciaId);
+        }
+        JwtClaimsSet claims = builder.build();
         return new NimbusJwtEncoder(new ImmutableSecret<>(key))
                 .encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();

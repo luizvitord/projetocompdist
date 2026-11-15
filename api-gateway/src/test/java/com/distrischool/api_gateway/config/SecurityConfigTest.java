@@ -88,10 +88,56 @@ class SecurityConfigTest {
         assertThat(send("GET", "/api/alunos", "Bearer " + expired)).isEqualTo(401);
     }
 
+    /** Regression: ADMIN and PROFESSOR still read everything (ALUNO/RESPONSAVEL in AcessoDoAlunoTest). */
     @Test
-    void anyProfileCanRead() throws Exception {
-        assertThat(send("GET", "/api/alunos/7/boletim", TestTokens.bearer("ALUNO"))).isEqualTo(200);
-        assertThat(send("GET", "/api/turmas", TestTokens.bearer("RESPONSAVEL"))).isEqualTo(200);
+    void adminAndProfessorReadEverything() throws Exception {
+        String[] paths = {
+                "/api/alunos?size=5", "/api/alunos/7", "/api/alunos/7/boletim?anoLetivo=2026",
+                "/api/frequencias/alunos/7?anoLetivo=2026", "/api/matriculas", "/api/matriculas?turmaId=3",
+                "/api/turmas", "/api/turmas/3", "/api/professores", "/api/tecnicos", "/api/disciplinas",
+                "/api/avaliacoes", "/api/avaliacoes/5/notas", "/api/notas/9/historico",
+                "/api/frequencias/chamadas", "/api/frequencias/relatorio?turmaId=3"};
+        for (String perfil : new String[] {"ADMIN", "PROFESSOR"}) {
+            for (String path : paths) {
+                assertThat(send("GET", path, TestTokens.bearer(perfil, 3L))).as(perfil + " " + path).isEqualTo(200);
+                assertThat(send("GET", path, TestTokens.bearer(perfil))).as(perfil + " without referenciaId " + path)
+                        .isEqualTo(200);
+            }
+        }
+    }
+
+    /** Every 403 is a ProblemDetail and keeps the resource server's WWW-Authenticate header. */
+    @Test
+    void forbiddenIsAProblemDetail() throws Exception {
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/turmas"))
+                        .header(HttpHeaders.AUTHORIZATION, TestTokens.bearer("PROFESSOR"))
+                        .POST(HttpRequest.BodyPublishers.ofString("{}")).build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.headers().firstValue(HttpHeaders.CONTENT_TYPE)).hasValue("application/problem+json");
+        assertThat(response.headers().firstValue(HttpHeaders.WWW_AUTHENTICATE)).hasValueSatisfying(
+                valor -> assertThat(valor).startsWith("Bearer"));
+        assertThat(response.body()).isEqualTo("{\"type\":\"about:blank\",\"title\":\"Acesso negado\",\"status\":403,"
+                + "\"detail\":\"O seu perfil não tem permissão para acessar este recurso.\",\"instance\":\"/api/turmas\"}");
+    }
+
+    /**
+     * Paths rejected by the Spring Security firewall answer 403 for every profile (they used to end
+     * as a 401 from /error, or a 400 from Tomcat for %2F) and never reach a route.
+     */
+    @Test
+    void suspiciousPathsAreForbiddenForEveryProfile() throws Exception {
+        for (String path : new String[] {"/api/alunos/12/../13", "/api/alunos//12", "/api/alunos/12%2F13",
+                "/api/alunos/%2E%2E/13", "/api/alunos/12;x=1"}) {
+            assertThat(send("GET", path, TestTokens.bearer("ADMIN"))).as(path).isEqualTo(403);
+        }
+    }
+
+    @Test
+    void tokenWithUnknownProfileCannotRead() throws Exception {
+        assertThat(send("GET", "/api/turmas", TestTokens.bearer("VISITANTE", 7L))).isEqualTo(403);
     }
 
     @Test

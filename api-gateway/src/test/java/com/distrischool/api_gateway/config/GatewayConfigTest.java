@@ -111,7 +111,7 @@ class GatewayConfigTest {
     /** notificacao-service identifies the recipient from the token, so it must receive the header as sent. */
     @Test
     void relaysTheAuthorizationHeaderToTheService() throws Exception {
-        String authorization = TestTokens.bearer("RESPONSAVEL");
+        String authorization = TestTokens.bearer("ADMIN");
         HttpRequest request = HttpRequest.newBuilder(URI.create(url("/api/alunos/eco-authorization")))
                 .header(HttpHeaders.AUTHORIZATION, authorization).GET().build();
 
@@ -123,7 +123,7 @@ class GatewayConfigTest {
 
     @Test
     void routesNotificationsToNotificacaoWithTheTokenOfTheCaller() throws Exception {
-        String authorization = TestTokens.bearer("RESPONSAVEL");
+        String authorization = TestTokens.bearer("ADMIN");
         for (String[] call : new String[][] {
                 {"GET", "/api/notificacoes"},
                 {"GET", "/api/notificacoes/nao-lidas/contagem"},
