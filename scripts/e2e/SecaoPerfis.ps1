@@ -45,7 +45,7 @@ function Test-CrudUsuarios($Base) {
 
     $r = Invoke-Api -Metodo GET -Caminho '/api/usuarios?perfil=PROFESSOR&size=200&sort=id,desc'
     Test-Status $r 200 'GET /api/usuarios?perfil=PROFESSOR'
-    $lista = Get-Conteudo $r
+    $lista = @(Get-Conteudo $r)
     Test-Condicao 'Listagem por perfil traz o usuario criado' (@($lista | Where-Object { $_.id -eq $usuario.id }).Count -eq 1) ('itens: ' + $lista.Count)
     Test-Condicao 'Listagem por perfil so traz PROFESSOR' (@($lista | Where-Object { $_.perfil -ne 'PROFESSOR' }).Count -eq 0) ('itens: ' + $lista.Count)
 

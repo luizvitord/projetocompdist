@@ -186,7 +186,7 @@ function Get-CamposErro($Resposta) {
 
 # 400 com ProblemDetail e com cada um dos campos esperados na lista "erros"
 function Test-ErroValidacao($Resposta, [string[]]$Campos, [string]$Descricao) {
-    $presentes = Get-CamposErro $Resposta
+    $presentes = @(Get-CamposErro $Resposta)
     $faltando = @($Campos | Where-Object { $presentes -notcontains $_ })
     $ok = ($Resposta.Status -eq 400) -and ($Resposta.ContentType -like 'application/problem+json*') -and ($faltando.Count -eq 0)
     $detalhe = 'campos esperados: ' + ($Campos -join ', ') + '; obtidos: ' + ($presentes -join ', ') + '; ' + (Get-Resumo $Resposta)

@@ -204,7 +204,8 @@ function Initialize-Usuarios {
 function Get-Notificacoes([string]$Token, [int]$Tamanho = 100) {
     $r = Invoke-Api -Metodo GET -Caminho ('/api/notificacoes?size=' + $Tamanho) -Token $Token
     if ($r.Status -ne 200) { return $null }
-    return @($r.Json.content)
+    # Virgula: uma lista vazia (ou de um item) nao e desmontada no retorno; $null = erro na API
+    return ,@($r.Json.content)
 }
 
 # Espera uma notificacao que satisfaca $Filtro (recebe a notificacao em $_) na lista do usuario
