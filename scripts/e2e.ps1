@@ -107,7 +107,7 @@ $Ctx = @{
 }
 
 $PastaModulos = Join-Path $PSScriptRoot 'e2e'
-foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin', 'SecaoPerfis', 'SecaoAdministrativa', 'SecaoFluxo', 'SecaoNotificacoes',
+foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin', 'SecaoPerfis', 'SecaoAdministrativa', 'SecaoEscolar', 'SecaoFluxo', 'SecaoNotificacoes',
                       'SecaoResiliencia', 'SecaoRateLimit')) {
     . (Join-Path $PastaModulos ($modulo + '.ps1'))
 }
@@ -117,6 +117,11 @@ $Catalogo = @(
     @{ Id = 'login';                      Nome = 'Login e JWT';                                       Funcao = 'Invoke-SecaoLogin';                     ParaContainers = $false }
     @{ Id = 'perfis';                     Nome = 'Usuarios e perfis de acesso';                       Funcao = 'Invoke-SecaoPerfis';                    ParaContainers = $false }
     @{ Id = 'administrativa';             Nome = 'Gestao administrativa';                             Funcao = 'Invoke-SecaoAdministrativa';            ParaContainers = $false }
+    @{ Id = 'alunos';                     Nome = 'Alunos';                                            Funcao = 'Invoke-SecaoAlunos';                    ParaContainers = $false }
+    @{ Id = 'matriculas';                 Nome = 'Matriculas';                                        Funcao = 'Invoke-SecaoMatriculas';                ParaContainers = $false }
+    @{ Id = 'frequencia';                 Nome = 'Frequencia';                                        Funcao = 'Invoke-SecaoFrequencia';                ParaContainers = $false }
+    @{ Id = 'notas';                      Nome = 'Avaliacoes e notas';                                Funcao = 'Invoke-SecaoNotas';                     ParaContainers = $false }
+    @{ Id = 'boletim';                    Nome = 'Boletim';                                           Funcao = 'Invoke-SecaoBoletim';                   ParaContainers = $false }
     @{ Id = 'fluxo';                      Nome = 'Fluxo funcional';                                   Funcao = 'Invoke-SecaoFluxo';                     ParaContainers = $false }
     @{ Id = 'notificacoes';               Nome = 'Notificacoes';                                      Funcao = 'Invoke-SecaoNotificacoes';              ParaContainers = $false }
     @{ Id = 'outbox';                     Nome = 'Outbox com o Kafka fora do ar';                     Funcao = 'Invoke-SecaoOutbox';                    ParaContainers = $true }
