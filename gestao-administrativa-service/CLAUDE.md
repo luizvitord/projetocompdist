@@ -1,404 +1,205 @@
-# CLAUDE.md — DistriSchool (raiz do monorepo)
+# CLAUDE.md — gestao-administrativa-service
 
-Este arquivo descreve a **tarefa atual** do projeto DistriSchool. Leia-o inteiro antes de gerar
-qualquer código. Os arquivos `CLAUDE.md` dentro de `gestao-administrativa-service/` e
-`gestao-escolar-service/` descrevem o escopo de cada serviço; as "tarefas" escritas neles já foram
-concluídas.
+Este arquivo descreve o `gestao-administrativa-service`, parte do projeto DistriSchool
+(plataforma de gestão escolar distribuída em microsserviços). Leia este arquivo antes
+de gerar qualquer código para este serviço.
 
-## Contexto
+O serviço se chamava `school-core-service`. O sistema passou a ter dois microsserviços
+de negócio, cada um com o próprio banco de dados:
 
-Plataforma de gestão escolar em microsserviços (projeto final de Sistemas Distribuídos). O
-documento de requisitos do professor pede, entre outros itens ainda não implementados:
-
-- **Serviço de Comunicação**: "Kafka + Spring Cloud Stream — notificações e avisos", com
-  **WebSocket** para notificações em tempo real no frontend
-- **Monitoramento**: Prometheus + Grafana, com métricas de latência e throughput e alertas
-- **Avaliação**: testes de carga com JMeter
-
-Esta tarefa implementa esses três itens.
-
-### Estado atual (não altere o que não for necessário)
-
-| Componente | Porta | Banco | Observações |
+| Serviço | Responsabilidade | Porta | Banco |
 |---|---|---|---|
-| `api-gateway` | 8080 | — | Spring Cloud Gateway **Server MVC**; valida o JWT; circuit breaker, retry de GET e rate limit do login (10/min por IP, por réplica) |
-| `gestao-administrativa-service` | 8081 | `postgres-administrativa` (15432) | Professores, técnicos, turmas, disciplinas |
-| `gestao-escolar-service` | 8082 | `postgres-escolar` (15433) | Alunos, matrículas, frequência, notas, boletim |
-| `usuarios-service` | 8083 | `postgres-usuarios` (15434) | Login e emissão do JWT (HS256, `JWT_SECRET`) |
-| `frontend` | 5173 | — | React + Vite + TypeScript + Tailwind; nginx no Compose |
-| Kafka | 9092 (host) / 29092 (rede do Compose) / 9092 (Kubernetes) | — | KRaft, 1 nó |
-
-- Stack: Java 21, Spring Boot 4.1.1, Spring Cloud `2025.1.4` (mesma versão do `api-gateway/pom.xml`),
-  Resilience4j 2.4.0 (`resilience4j-spring-boot4`), PostgreSQL 17 + Flyway, Spring Kafka 4 / Jackson 3.
-- Os produtores gravam eventos numa **transactional outbox** (`outbox_evento`) e o `OutboxRelay`
-  publica no Kafka. A entrega é **pelo menos uma vez**: o mesmo evento pode chegar mais de uma vez,
-  inclusive com offsets diferentes. Todo consumidor precisa ser idempotente.
-- Os payloads são JSON **sem cabeçalhos de tipo Java**.
-- Todos os serviços expõem `/actuator/prometheus`; no Kubernetes os pods já têm as anotações
-  `prometheus.io/scrape|port|path`.
-- O JWT tem as claims `sub` (id do usuário), `nome`, `email`, `perfil` (`ADMIN`, `PROFESSOR`,
-  `ALUNO`, `RESPONSAVEL`) e `referenciaId` (id do professor para `PROFESSOR`; id do aluno para
-  `ALUNO` e `RESPONSAVEL`). Veja `docs/AUTENTICACAO.md`.
-- `scripts/e2e.ps1` testa os fluxos de ponta a ponta pelo gateway (Windows PowerShell 5.1, só
-  ASCII). Ele precisa continuar passando.
-
-### Leia antes de começar
-
-1. `README.md`, `docs/AUTENTICACAO.md`, `k8s/README.md`, `docker-compose.yml`
-2. `gestao-escolar-service/CLAUDE.md` (padrões, contrato dos eventos)
-3. `scripts/e2e.ps1` (payloads atuais das APIs; algumas usam o número de matrícula do aluno)
-4. `api-gateway/.../config/GatewayConfig.java` e `SecurityConfig.java`
-5. O pacote `event/` do `gestao-escolar-service` (outbox, `KafkaTopics`, records dos eventos)
-
-## Regras gerais
-
-- Execute as etapas **em ordem**. Ao fim de cada uma, rode os testes dos módulos afetados e faça
-  **um commit por etapa** (mensagens no estilo do repositório: `feat: ...`, `fix: ...`,
-  `docs: ...`). Não faça push.
-- Siga os padrões existentes: pacote por módulo, `ProblemDetail` via `ApiExceptionHandler`,
-  schema só pelo Flyway (`ddl-auto=validate`), **nunca** edite migrations aplicadas, `Dockerfile`
-  multi-stage com usuário de UID numérico, probes do Actuator, HPA, PDB, ConfigMap e Secret.
-- Comentários e mensagens em português, como no resto do código.
-- **LGPD**: payloads de eventos e o texto das notificações têm dados de alunos. Logs trazem só ids,
-  tópico, chave e tipo, nunca payload, nome ou email.
-- Fixe versões de imagens Docker, dependências Maven e pacotes npm. Nunca use `latest`.
-- Antes de adicionar uma dependência, confirme que ela é compatível com Spring Boot 4.1 / Spring
-  Cloud 2025.1. Se algo exigido aqui não for compatível, **pare e explique** antes de trocar de
-  abordagem; registre a decisão no README do módulo.
-- O ambiente de desenvolvimento é Windows (PowerShell) com Docker Desktop e minikube. Scripts
-  novos para o usuário rodar são `.ps1` compatíveis com o Windows PowerShell 5.1; arquivos que
-  rodam em Linux (`mvnw`, `.sh`) usam LF (o `.gitattributes` já cobre `mvnw`).
-- Ao terminar cada etapa, atualize a documentação correspondente (README da raiz,
-  `k8s/README.md`, `docs/`).
-
-## Fora do escopo
-
-- Restringir o que `ALUNO`/`RESPONSAVEL` podem consultar nas APIs existentes (problema conhecido,
-  será tratado depois). Só as rotas novas de notificações precisam filtrar pelo dono.
-- ELK, Redis, gRPC, serviço de relatórios, Terraform, CI/CD.
-- Envio real de email ou push mobile.
-
----
-
-## Parte A — `notificacao-service`
-
-### Etapa 1 — Esqueleto, consumo dos eventos e persistência
-
-Crie `notificacao-service/` com a mesma base dos outros serviços (Maven Wrapper, `Dockerfile`,
-`.dockerignore`, pacote `common/` copiado e adaptado). Os serviços não compartilham código.
-
-- `artifactId` e `spring.application.name`: `notificacao-service`; pacote
-  `com.distrischool.notificacao`; porta **8084**.
-- Banco próprio `notificacao` (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`; padrão
-  `jdbc:postgresql://localhost:15435/notificacao`).
-- Swagger sob o prefixo `/notificacao/swagger-ui.html` e `/notificacao/v3/api-docs`.
-
-**Mensageria: Spring Cloud Stream com o binder Kafka** (exigência do documento), no estilo
-funcional (`java.util.function.Consumer` + bindings `<nome>-in-0`). Use o BOM do Spring Cloud na
-mesma versão do gateway.
-
-- Grupo de consumidores: `notificacao-service` em todos os bindings de domínio. Isso demonstra
-  publish/subscribe: o `schedule.updated` é lido pelo `gestao-escolar-service` (grupo próprio) e
-  também por este serviço.
-- Falhas: 3 tentativas com backoff exponencial (1 s, 2 s) e depois DLQ no tópico
-  `<tópico>.DLT` (mesma convenção do `gestao-escolar-service`; o padrão do binder é outro, então
-  configure `dlqName` explicitamente). Payload fora do contrato não é repetido: vai direto para a DLT.
-- Leia o JSON sem depender de classes dos outros serviços e ignore campos desconhecidos.
-
-**Tópicos consumidos e notificações geradas**
-
-O destinatário de uma notificação é o par (`perfil`, `referenciaId`), o mesmo que vai no JWT.
-`ADMIN` tem `referenciaId` nulo e representa a coordenação (todos os administradores veem as
-mesmas notificações).
-
-| Tópico | Produtor | Destinatários | Exemplo de texto |
-|---|---|---|---|
-| `grade.posted` | escolar | `ALUNO` e `RESPONSAVEL` de cada `alunoId` em `notas` | "Nova nota em Matemática (1º bimestre): 8,5" |
-| `attendance.recorded` | escolar | `ALUNO` e `RESPONSAVEL` de cada `alunoId` em `ausencias` | "Falta registrada em Matemática em 10/11/2026" |
-| `enrollment.created` | escolar | `ALUNO` e `RESPONSAVEL` do `alunoId` | "Matrícula confirmada na turma 9º Ano A (2026)" |
-| `enrollment.updated` | escolar | `ALUNO` e `RESPONSAVEL` do `alunoId`; `ADMIN` quando `statusNovo` for `CANCELADA` ou `TRANSFERIDA` | "Sua matrícula na turma 9º Ano A foi trancada" |
-| `student.created` | escolar | `ADMIN` | "Aluno cadastrado: Ana Souza (matrícula 2026000001)" |
-| `teacher.assigned` | administrativa | `PROFESSOR` do `professorId` | "Você foi atribuído à turma 9º Ano A" |
-| `staff.created` | administrativa | `ADMIN` | "Técnico administrativo cadastrado: João Lima (Secretaria)" |
-| `schedule.updated` | administrativa | — | Só atualiza o cache de nomes (abaixo) |
-
-Os payloads estão nos records de `gestao-escolar-service/.../event/` e
-`gestao-administrativa-service/.../event/`. Confira os campos reais antes de escrever os DTOs.
-
-**Cache local de nomes.** `grade.posted`, `attendance.recorded` e `enrollment.*` só trazem ids.
-Para textos legíveis, mantenha as tabelas `turma_nome` (`turma_id`, `codigo`, `nome`,
-`ultimo_evento_em`) e `disciplina_nome` (`disciplina_id`, `nome`, `ultimo_evento_em`) alimentadas
-pelo `schedule.updated` (upsert; ignore eventos com `occurredAt` mais antigo). Se o nome não
-estiver no cache, use um texto neutro ("turma #12"). Nunca chame outro serviço por HTTP aqui.
-
-**Modelo de dados (banco `notificacao`)**
-
-- `notificacao`: `id`, `destinatario_perfil`, `destinatario_referencia_id` (nulo para `ADMIN`),
-  `tipo` (`NOTA_LANCADA`, `FALTA_REGISTRADA`, `MATRICULA_CRIADA`, `MATRICULA_ALTERADA`,
-  `ALUNO_CADASTRADO`, `PROFESSOR_ATRIBUIDO`, `TECNICO_CADASTRADO`), `titulo`, `mensagem`, `link`
-  (rota do frontend, ex.: `/alunos/12`), `criada_em`, `lida_em` (nulo = não lida),
-  `evento_hash`.
-- **Idempotência**: os eventos não têm id. Calcule `evento_hash` = SHA-256 de
-  `tópico + chave + payload bruto` e crie um índice único em
-  (`evento_hash`, `destinatario_perfil`, `destinatario_referencia_id`). Reentrega do mesmo evento
-  não gera notificação duplicada (insert que viola o índice é ignorado, sem erro).
-- Índices para a consulta do destinatário (`destinatario_perfil`, `destinatario_referencia_id`,
-  `criada_em DESC`) e para não lidas.
-- `CHECK` nos enums.
-
-**API REST** (todas exigem JWT; o serviço valida o token com o mesmo `JWT_SECRET`, como resource
-server, e identifica o destinatário pelas claims `perfil` e `referenciaId`; não confie em
-parâmetros para isso):
-
-- `GET /api/notificacoes` — paginado, mais recentes primeiro; filtro `somenteNaoLidas`
-- `GET /api/notificacoes/nao-lidas/contagem` — `{ "total": 3 }`
-- `PATCH /api/notificacoes/{id}/lida` — 404 se a notificação não for do destinatário
-- `POST /api/notificacoes/lidas` — marca todas as do destinatário como lidas
-
-Confirme, com um teste, que o gateway repassa o cabeçalho `Authorization` para o serviço.
-
-**Métricas próprias** (Micrometer): contador `notificacoes_criadas_total` por `tipo`, contador
-`notificacoes_enviadas_total` por canal (`websocket`) e gauge de sessões WebSocket ativas.
-
-**Testes**: unitários para o mapeamento evento → notificações de cada tópico; idempotência (o mesmo
-evento duas vezes gera uma notificação por destinatário); evento antigo do `schedule.updated`
-ignorado; payload inválido vai para a DLT (use o test binder do Spring Cloud Stream);
-`@WebMvcTest` do controller, incluindo 401 sem token e 404 para notificação de outro destinatário.
-
-### Etapa 2 — Notificações em tempo real por WebSocket
-
-- WebSocket com **STOMP**, endpoint `/ws` (sem SockJS, para não exigir sessão fixa no
-  balanceador).
-- Autenticação: o navegador não envia cabeçalhos no handshake, então o token vai no frame
-  `CONNECT` (`Authorization: Bearer <token>`). Valide num `ChannelInterceptor`; token ausente ou
-  inválido recusa a conexão. O `Principal` da sessão é o destinatário (`ALUNO:12`, `PROFESSOR:7`,
-  `ADMIN`).
-- Entrega com `convertAndSendToUser(<principal>, "/queue/notificacoes", dto)`.
-- Heartbeats STOMP de 10 s nos dois sentidos.
-- **Várias réplicas**: o consumidor de domínio roda em um grupo compartilhado, então o pod que
-  grava a notificação pode não ser o pod em que o usuário está conectado. Resolva assim:
-  1. depois do commit da notificação, publique um evento interno no tópico
-     `notificacao.criada` (via `StreamBridge`), com o id e o destinatário;
-  2. todas as réplicas consomem esse tópico em **grupo anônimo** (cada instância recebe todas as
-     mensagens) e entregam às sessões conectadas nelas.
-     Documente essa decisão (competing consumers × fan-out). Se o envio interno falhar, a notificação
-     continua gravada e aparece no próximo carregamento da lista.
-- Testes: conexão sem token é recusada; mensagem enviada ao destinatário certo e não aos outros.
-
-### Etapa 3 — Gateway, Compose e Kubernetes
-
-**WebSocket e o gateway.** O gateway é o Spring Cloud Gateway **Server MVC**. Verifique na
-documentação da versão em uso se ele faz proxy de WebSocket. O mais provável é que não faça;
-nesse caso, o `/ws` vai **direto** para o `notificacao-service` (nginx do frontend, proxy do Vite e
-Ingress), e o próprio serviço valida o JWT. Documente essa exceção em `docs/AUTENTICACAO.md`
-("o gateway é o único ponto que valida o token, exceto no WebSocket de notificações").
-
-**`api-gateway`**:
-- Rota `notificacao` para `/api/notificacoes/**` e `/notificacao/**` (Swagger), com o mesmo filtro
-  `resiliente(...)` das outras rotas e a instância de circuit breaker `notificacao`
-  (`base-config=default`). Nova propriedade `gateway.notificacao-url` / `NOTIFICACAO_URL`
-  (padrão `http://localhost:8084`).
-- `SecurityConfig`: `/api/notificacoes/**` liberado para **qualquer perfil autenticado**
-  (todos os métodos), declarado **antes** da regra que restringe `/api/**` a `ADMIN`;
-  `/notificacao/**` livre, como os outros Swaggers.
-- Atualize os testes do gateway (rotas, segurança, serviço fora do ar → 503).
-
-**`docker-compose.yml`**:
-- `postgres-notificacao` (`postgres:17`, banco/usuário/senha `notificacao`, porta `15435:5432`,
-  volume `postgres-notificacao-data`, healthcheck como os outros).
-- `notificacao-service` (build local, `restart: unless-stopped`, `KAFKA_BOOTSTRAP_SERVERS:
-  kafka:29092`, `JWT_SECRET` igual ao dos outros, healthcheck de readiness, depende do banco e do
-  Kafka saudáveis). Publique `8084:8084` para o modo de desenvolvimento do frontend.
-- `api-gateway` ganha `NOTIFICACAO_URL` e passa a depender de `notificacao-service`
-  (`service_started`).
-
-**Frontend (infra)**:
-- `frontend/nginx.conf`: `location /ws` com `proxy_http_version 1.1`, cabeçalhos `Upgrade` e
-  `Connection "upgrade"` e `proxy_read_timeout 3600s`, apontando para `notificacao-service:8084`.
-- `vite.config.ts`: proxy `/ws` com `ws: true` para `http://localhost:8084`.
-
-**Kubernetes** (mesmo padrão dos outros serviços):
-- `k8s/base/postgres-notificacao/` (StatefulSet + Service, 2Gi)
-- `k8s/base/notificacao-service/` (Deployment com initContainer `wait-for-postgres`, probes,
-  anotações do Prometheus, Service, HPA 2–5, PDB)
-- ConfigMap `notificacao-config` (`SERVER_PORT=8084`, `DB_URL`, `KAFKA_BOOTSTRAP_SERVERS=kafka:9092`,
-  `LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs`); `JWT_SECRET` do Secret `jwt-secret` existente
-- `NOTIFICACAO_URL=http://notificacao-service:8084` no `api-gateway-config`
-- Overlay do minikube: imagem `notificacao-service:dev`, `imagePullPolicy: Never`, Secret
-  `postgres-notificacao-credentials`
-- Ingress: `/notificacao` → `api-gateway`. Para o `/ws`, crie um **segundo** Ingress
-  (`distrischool-ws`) apontando direto para o `notificacao-service`, com as anotações do
-  ingress-nginx `proxy-read-timeout` e `proxy-send-timeout` em `3600`
-- `k8s/README.md`: `minikube image build -t notificacao-service:dev notificacao-service`
-
-### Etapa 4 — Frontend: central de notificações
-
-- Cliente STOMP com `@stomp/stompjs` (versão fixa). Conecta em `/ws` (mesma origem) depois do
-  login, com o token no `connectHeaders`; reconexão automática com espera crescente; desconecta no
-  logout e quando o token expira.
-- Ao conectar (e a cada reconexão), busque a contagem de não lidas pela API REST, para não perder
-  o que chegou enquanto estava desconectado.
-- No `Topbar`: sino com a contagem de não lidas; painel com as últimas notificações (link para a
-  rota, "marcar como lida", "marcar todas como lidas"); aviso rápido (toast) quando chega uma nova,
-  usando o feedback global que o frontend já tem.
-- Use o cliente HTTP existente (`services/http.ts`) para as chamadas REST.
-- Testes (Vitest + Testing Library + MSW): contagem exibida, marcar como lida, chegada de
-  notificação pelo cliente STOMP simulado.
-- Rode `npm test -- --run`, `npm run lint` e `npm run build`.
-
-**E2E**: estenda `scripts/e2e.ps1` com uma seção de notificações: crie pela API um usuário
-`RESPONSAVEL` com `referenciaId` = id do aluno do fluxo, lance uma nota, faça login como esse
-responsável e confira (com espera de até ~15 s) que `GET /api/notificacoes` traz a notificação
-`NOTA_LANCADA`. Mantenha o script só com ASCII e compatível com o PowerShell 5.1.
-
----
-
-## Parte B — Prometheus + Grafana
-
-### Etapa 5 — Métricas nos serviços
-
-Em **todos** os serviços Java (gateway, administrativa, escolar, usuários, notificação):
-
-- Histograma de latência HTTP para calcular percentis no Prometheus:
-  `management.metrics.distribution.percentiles-histogram.http.server.requests=true` (confirme o nome
-  da propriedade no Spring Boot 4.1).
-- Métricas do Resilience4j (estado do circuit breaker, chamadas, retries) no gateway e no
-  `gestao-escolar-service`; adicione o módulo de Micrometer do Resilience4j se não vierem sozinhas.
-- Confirme que já aparecem: JVM, CPU do processo, HikariCP, métricas do cliente Kafka (incluindo o
-  lag do consumidor) e o gauge da outbox (`outbox.eventos.pendentes`).
-
-**Regra para os dashboards**: antes de usar uma métrica em PromQL, confirme o nome exato na saída
-real de `/actuator/prometheus` de um serviço rodando. Não invente nomes de métricas.
-
-O rótulo que identifica o serviço (`servico`) é adicionado pelo Prometheus (job/relabel), não pela
-aplicação.
-
-### Etapa 6 — Prometheus e Grafana no Docker Compose
-
-- `prometheus` (imagem `prom/prometheus` com versão fixa), porta `9090`, retenção de 2 dias.
-  Configuração em `monitoring/prometheus/prometheus.yml` com alvos estáticos (nomes dos containers e
-  portas 8080–8084, caminho `/actuator/prometheus`, intervalo de 5 s) e rótulo `servico` por alvo.
-- `grafana` (imagem `grafana/grafana` com versão fixa), porta **`3001:3000`** (a `3000` fica livre),
-  usuário e senha de desenvolvimento por variável de ambiente.
-- Provisionamento automático (nada configurado à mão): datasource Prometheus em
-  `http://prometheus:9090` e dashboards carregados de arquivos.
-- **Os JSON dos dashboards e o arquivo de datasource ficam num único lugar, que o Kustomize
-  consegue ler**: `k8s/base/monitoring/grafana/` (o Kustomize não lê arquivos fora da pasta da
-  kustomization). O Compose monta essa mesma pasta. O datasource usa a mesma URL nos dois
-  ambientes, porque o Service do Kubernetes também se chama `prometheus`.
-
-**Dashboard "DistriSchool — Visão geral"** (uma variável `servico`, intervalo padrão 15 min,
-atualização a cada 5 s):
-
-- Throughput (req/s) por serviço e por rota (`uri`)
-- Latência p50, p95 e p99 por serviço
-- Taxa de erros 4xx e 5xx (%)
-- Réplicas ativas por serviço (no Kubernetes, `count(up == 1)` por `servico`; útil para ver o HPA
-  escalando durante o teste de carga)
-- CPU do processo e heap da JVM por instância
-- Conexões HikariCP ativas e pendentes
-- Estado do circuit breaker por rota do gateway e do `gestao-escolar-service`
-- Eventos pendentes na outbox por serviço
-- Lag dos consumidores Kafka por grupo
-- Notificações criadas e enviadas por minuto, e sessões WebSocket ativas
-
-**Alertas** (regras do Prometheus em `monitoring/prometheus/alertas.yml`, visíveis em
-`/alerts`; sem Alertmanager): serviço fora (`up == 0` por 1 min), latência p95 acima de 1 s por
-5 min, erros 5xx acima de 5% por 5 min, circuit breaker aberto, outbox acima de 100 pendentes por
-5 min, lag de consumidor acima de 1000 por 5 min.
-
-Valide subindo o Compose: os alvos aparecem `UP` em `http://localhost:9090/targets` e os painéis
-mostram dados depois de algumas requisições.
-
-### Etapa 7 — Prometheus e Grafana no Kubernetes
-
-Em `k8s/base/monitoring/`:
-
-- Prometheus com descoberta de pods (`kubernetes_sd_configs`, `role: pod`, só o namespace
-  `distrischool`), usando as anotações `prometheus.io/*` existentes. Relabel: `servico` a partir do
-  rótulo `app.kubernetes.io/name`, e `pod`. ServiceAccount + Role + RoleBinding no namespace (sem
-  ClusterRole). Mesmas regras de alerta do Compose.
-- Grafana com o mesmo provisionamento (ConfigMaps gerados pelo Kustomize a partir de
-  `k8s/base/monitoring/grafana/`).
-- Recursos pequenos (requests de CPU e memória baixos) e retenção curta: o minikube já está perto
-  do limite. No `k8s/README.md`, recomende `--memory=8g` quando a máquina permitir.
-- Acesso por `kubectl port-forward` (`svc/prometheus 9090`, `svc/grafana 3001:3000`); **não**
-  exponha no Ingress.
-- Inclua os novos recursos na `kustomization.yaml` da base.
-
----
-
-## Parte C — Testes de carga com JMeter
-
-### Etapa 8 — Plano de teste e execução
-
-Crie `load-tests/` com:
-
-- `distrischool.jmx`: plano parametrizado por propriedades `-J`: `host`, `porta`, `protocolo`,
-  `usuarios`, `rampa` (s), `duracao` (s), `email`, `senha`.
-- **Login uma única vez**: o gateway limita o login a 10 por minuto por IP. Use um **setUp Thread
-  Group** que faz o login como ADMIN e guarda o token numa propriedade compartilhada; os grupos
-  principais só reutilizam o token. Nunca faça login por iteração.
-- **Massa de dados** no setUp: crie, pela API, os dados de que o teste precisa (disciplina,
-  professor, turma com a disciplina ofertada, alguns alunos e suas matrículas), com códigos que
-  incluem um identificador da execução, para que execuções repetidas não colidam (sem 409). Use os
-  payloads de `scripts/e2e.ps1` como referência.
-- **Cenário misto** (proporções aproximadas, com Throughput Controllers):
-  - 70% leitura: listagem paginada de alunos (com e sem filtro), turmas, detalhe de turma, boletim
-    e frequência de um aluno
-  - 20% escrita que gera eventos: criar uma avaliação e lançar as notas das matrículas (gera
-    `grade.posted` e, portanto, notificações)
-  - 10% cadastro de aluno (gera `student.created`)
-- Think time aleatório entre requisições (ex.: 300–1000 ms), assertions de status 2xx,
-  `Authorization: Bearer ${__P(token)}` num HTTP Header Manager.
-- Perfis prontos, documentados no README: **fumaça** (5 usuários, 1 min), **carga** (50 usuários,
-  rampa de 2 min, 10 min), **estresse** (rampa até 200 usuários) e **HPA** (carga sustentada alta
-  por 10 min para provocar o autoscaling).
-
-`load-tests/executar.ps1` roda o JMeter em **modo não gráfico pelo Docker** (imagem com versão
-fixa; confirme que a tag existe), sem exigir instalação local:
-
-- Parâmetros: perfil e alvo (`compose` → container na rede do Compose apontando para
-  `api-gateway:8080`; `minikube` → `host.docker.internal:8080` via `kubectl port-forward`).
-- Gera o resultado bruto (`.jtl`) e o relatório HTML do JMeter (`-e -o`) em
-  `load-tests/resultados/<data-hora>-<perfil>/` (adicione `load-tests/resultados/` ao
-  `.gitignore`).
-
-`load-tests/README.md`:
-
-- Como rodar cada perfil nos dois ambientes.
-- **Roteiro de demonstração**: abrir o Grafana, rodar o perfil HPA no minikube, acompanhar
-  `kubectl get hpa -n distrischool -w`, ver throughput, latência e réplicas no dashboard, e apagar um
-  pod no meio do teste para mostrar a tolerância a falhas.
-- Como ler o relatório do JMeter (throughput, p90/p95/p99, % de erros) e compará-lo com o Grafana.
-
-`load-tests/RESULTADOS.md`: **modelo** de tabela para registrar cada execução (data, ambiente,
-perfil, usuários, throughput, p95, p99, % de erros, réplicas mínimas e máximas, observações).
-**Não preencha com números inventados.** Se você conseguir rodar o perfil fumaça contra o Compose,
-registre só os números dessa execução real e diga onde está o relatório.
-
-### Etapa 9 — Documentação final
-
-- README da raiz: novo serviço, Prometheus (`:9090`), Grafana (`:3001`), testes de carga e como
-  ver as notificações em tempo real.
-- `docs/NOTIFICACOES.md`: arquitetura (tópicos consumidos, destinatários, idempotência, DLT,
-  fan-out entre réplicas, WebSocket fora do gateway), com um diagrama em texto.
-- `docs/MONITORAMENTO.md`: o que cada painel mostra, as regras de alerta e como os percentis são
-  calculados.
-- `k8s/README.md`: imagens novas, recursos de monitoramento, port-forwards e roteiro de demonstração
-  atualizado.
-
-## Critérios de aceite
-
-- `./mvnw test` passa em todos os serviços Java; `npm test -- --run`, `npm run lint` e
-  `npm run build` passam no frontend.
-- `docker compose up --build` sobe tudo; `scripts/e2e.ps1` passa, incluindo a nova seção de
-  notificações.
-- Lançar uma nota pelo portal faz aparecer, em tempo real, a notificação para um usuário
-  `RESPONSAVEL` ligado ao aluno, logado em outra aba.
-- O mesmo evento entregue duas vezes não gera notificação duplicada.
-- Com o `notificacao-service` fora do ar, o resto do sistema continua funcionando; quando ele volta,
-  as notificações dos eventos publicados nesse intervalo aparecem (o Kafka guardou os eventos).
-- Prometheus mostra todos os alvos `UP` no Compose e no minikube; o dashboard do Grafana carrega
-  sozinho e mostra throughput, latência, erros e réplicas.
-- O perfil fumaça do JMeter roda sem erros contra o Compose e gera o relatório HTML.
+| `gestao-administrativa-service` (este) | Professores, técnicos administrativos, turmas e disciplinas | 8081 | `gestao_administrativa` |
+| `gestao-escolar-service` | Alunos, matrículas, frequências e notas | 8082 | `gestao_escolar` |
+
+## Tarefa atual: reestruturação
+
+Execute as etapas abaixo **em ordem**. Rode `./mvnw test` ao final de cada etapa e faça
+**um commit por etapa**, com mensagem clara. O commit da Etapa 2 é importante: o
+`gestao-escolar-service` vai recuperar o código de alunos pelo histórico do git.
+
+### Etapa 1 — Mover para o monorepo e renomear
+
+O repositório vira um monorepo, com um diretório por serviço:
+
+```
+projetocompdist/
+├── docker-compose.yml               # infraestrutura local compartilhada
+├── k8s/                             # manifests de todos os serviços
+├── gestao-administrativa-service/   # este serviço
+└── gestao-escolar-service/          # criado em uma tarefa posterior
+```
+
+- Use `git mv` (para preservar o histórico) para mover `src/`, `pom.xml`, `mvnw`, `mvnw.cmd`,
+  `.mvn/`, `Dockerfile` e `.dockerignore` para `gestao-administrativa-service/`.
+  `docker-compose.yml`, `k8s/`, `.gitignore` e `.gitattributes` ficam na raiz; confira se os
+  padrões do `.gitignore` continuam valendo para o subdiretório.
+- Mova este arquivo para `gestao-administrativa-service/CLAUDE.md`.
+- Renomeie:
+  - `artifactId`, `name` e `spring.application.name` → `gestao-administrativa-service`
+  - pacote `com.distrischool.school_core_service` → `com.distrischool.gestao_administrativa`
+  - classe principal → `GestaoAdministrativaServiceApplication`
+  - título do OpenAPI → "DistriSchool - gestao-administrativa-service"
+- Swagger sob prefixo próprio, porque o Ingress vai expor os dois serviços:
+  `/administrativa/swagger-ui.html` e `/administrativa/v3/api-docs`. Verifique se o springdoc
+  serve os recursos estáticos corretamente com esse prefixo.
+- Banco de dados `gestao_administrativa` (banco, usuário e senha de desenvolvimento iguais).
+  No `docker-compose.yml`, o serviço `postgres` vira `postgres-administrativa`, mantendo a porta
+  `15432`. O Kafka continua na `9092`. Ajuste o `application.properties`.
+- Kubernetes: renomeie `k8s/base/school-core-service` → `gestao-administrativa-service`,
+  `k8s/base/postgres` → `postgres-administrativa`, o Secret `postgres-credentials` →
+  `postgres-administrativa-credentials` e o ConfigMap `school-core-config` →
+  `gestao-administrativa-config`. Atualize o overlay do minikube, o Ingress e o `k8s/README.md`
+  (o build da imagem passa a ser `minikube image build -t gestao-administrativa-service:dev gestao-administrativa-service`).
+- A porta da aplicação continua `8081`.
+
+### Etapa 2 — Remover o módulo de alunos
+
+Alunos passam a pertencer ao `gestao-escolar-service`.
+
+- Apague o pacote `aluno/`, o `AlunoControllerTest`, o `StudentCreatedEvent`, a constante
+  `STUDENT_CREATED` e a criação do tópico `student.created` no `KafkaTopicConfig`.
+- Em `Turma`: remova o relacionamento `alunos`, o campo `quantidadeAlunos` e a regra que impede
+  reduzir a capacidade abaixo do número de alunos. O campo `capacidade` continua existindo;
+  quem a valida, no momento da matrícula, é o `gestao-escolar-service`.
+- Remova os endpoints `PUT/DELETE /api/turmas/{id}/alunos/{alunoId}` (a matrícula de alunos em
+  turmas passa a ser feita em `POST /api/matriculas`, no outro serviço).
+- Migration `V3__remove_alunos.sql`: `DROP TABLE turma_aluno`, `DROP TABLE aluno` e
+  `DROP SEQUENCE aluno_matricula_seq`. **Nunca** edite a V1 ou a V2.
+- Remova a rota `/api/alunos` do Ingress.
+
+### Etapa 3 — Disciplinas
+
+As notas e frequências do `gestao-escolar-service` são lançadas por disciplina, então este
+serviço precisa cadastrar disciplinas e ofertá-las nas turmas.
+
+**Disciplina** (novo pacote `disciplina/`):
+- Campos: `codigo` (obrigatório, único, até 20 caracteres), `nome` (obrigatório, até 100),
+  `cargaHoraria` (horas, opcional, positiva), `ativa` (gerenciado pelo sistema, padrão `true`)
+- `POST /api/disciplinas`
+- `GET /api/disciplinas` (paginado; filtros `nome`, `ativa`; inativas ocultas por padrão)
+- `GET /api/disciplinas/{id}`
+- `PUT /api/disciplinas/{id}`
+- `DELETE /api/disciplinas/{id}` (exclusão lógica; retorna 409 se a disciplina estiver
+  ofertada em alguma turma)
+
+**Oferta de disciplina na turma** (tabela `turma_disciplina`):
+- Colunas: `turma_id`, `disciplina_id`, `professor_id` (opcional); chave única em
+  (`turma_id`, `disciplina_id`)
+- `PUT /api/turmas/{id}/disciplinas/{disciplinaId}`, com corpo `{ "professorId": 7 }`
+  (opcional): oferta a disciplina na turma ou troca o professor responsável
+- `DELETE /api/turmas/{id}/disciplinas/{disciplinaId}`: retira a oferta
+- Disciplina inativa não pode ser ofertada (409). Professor inexistente → 404.
+- Se o professor indicado ainda não estiver atribuído à turma (`turma_professor`), atribua-o
+  automaticamente e publique `teacher.assigned`, como já acontece hoje.
+- `TurmaResponse` ganha a lista `disciplinas` (`disciplinaId`, `codigo`, `nome`,
+  `professorId`, `professorNome`) e perde `quantidadeAlunos`.
+- Migration `V4__disciplinas.sql`, com índices em `lower(nome)` e nas chaves estrangeiras.
+
+### Etapa 4 — Enriquecer o evento `schedule.updated`
+
+O `gestao-escolar-service` mantém uma cópia local das turmas e disciplinas a partir deste
+evento. O payload passa a carregar o estado completo da turma (ver **Contrato do evento
+`schedule.updated`** abaixo).
+
+Publique o evento, sempre após o commit e com a chave `turmaId`, quando:
+- uma turma for criada, alterada ou removida;
+- uma disciplina for ofertada ou retirada de uma turma, ou o professor da oferta mudar;
+- uma disciplina for renomeada ou tiver o código alterado (um evento para cada turma que a oferta).
+
+Atualize os testes existentes de turma e crie testes para disciplinas.
+
+## Escopo deste serviço (estado após a tarefa)
+
+### Gestão de Professores
+- Implementado: cadastro, edição, consulta e listagem (sem exclusão); atribuição a turmas
+- Pendente: visualização de horários, relatórios de desempenho, logs de auditoria
+
+### Gestão de Técnicos Administrativos
+- Implementado: CRUD completo com exclusão lógica e evento `staff.created`
+
+### Gestão de Turmas e Disciplinas
+- Implementado: CRUD de turmas, atribuição de professores, capacidade; disciplinas e oferta
+  de disciplinas por turma (nesta tarefa)
+- Pendente: horários de aula, calendário escolar, feriados, detecção de conflitos de horário,
+  importação via Excel
+
+## Fora do escopo deste serviço
+
+- Alunos, matrículas, frequências, notas e boletim → `gestao-escolar-service`. Não
+  reimplemente nada disso aqui e nunca acesse o banco do outro serviço.
+- Autenticação/autorização (login, JWT, OAuth2) → serviço de usuários (futuro)
+- Envio de notificações → `notification-service` (futuro)
+- Relatórios analíticos/ML → serviço de relatórios (futuro)
+
+## Comunicação com outros serviços
+
+Este serviço **publica** no Kafka:
+
+- `teacher.assigned` — professor atribuído a uma turma
+- `schedule.updated` — turma ou suas disciplinas alteradas (contrato abaixo)
+- `staff.created` — técnico administrativo cadastrado (sem CPF no payload)
+
+`student.created` **não** é mais publicado aqui; agora pertence ao `gestao-escolar-service`.
+
+Este serviço **não consome** eventos.
+
+O `gestao-escolar-service` depende de duas interfaces deste serviço: o evento
+`schedule.updated` e o endpoint `GET /api/turmas/{id}`, que ele chama quando uma turma ainda
+não está na sua cópia local. **Não altere o formato de nenhum dos dois** sem atualizar
+também o `gestao-escolar-service/CLAUDE.md`. Adicionar campos novos é seguro; remover ou
+renomear campos quebra o outro serviço.
+
+### Contrato do evento `schedule.updated`
+
+```json
+{
+  "turmaId": 12,
+  "codigo": "9A-2026",
+  "nome": "9º Ano A",
+  "anoLetivo": 2026,
+  "turno": "MANHA",
+  "capacidade": 35,
+  "disciplinas": [
+    { "disciplinaId": 3, "codigo": "MAT", "nome": "Matemática", "professorId": 7 }
+  ],
+  "acao": "ATUALIZADA",
+  "occurredAt": "2026-10-24T11:00:00Z"
+}
+```
+
+- `acao`: `CRIADA`, `ATUALIZADA` ou `REMOVIDA`. Em `REMOVIDA`, os demais campos trazem o último
+  estado da turma.
+- `capacidade` e `professorId` podem ser `null`.
+- `disciplinas` traz sempre a lista completa e atual de ofertas da turma (não um delta).
+- Chave da mensagem: `turmaId` como string. JSON sem cabeçalhos de tipo Java.
+
+## Padrões de implementação
+
+- Um pacote por módulo (`professor/`, `tecnico/`, `turma/`, `disciplina/`), cada um com
+  entidade, repository, specifications, service, controller e DTOs
+- Schema controlado só pelo Flyway (`ddl-auto=validate`); toda mudança é uma migration nova com
+  o próximo número de versão; **nunca** edite migrations já aplicadas
+- Listagens paginadas; índices em colunas usadas em filtros
+- Erros no formato `ProblemDetail` via `ApiExceptionHandler`: 400 (validação, com a lista de
+  campos), 404 (não encontrado), 409 (regra de negócio)
+- Eventos Kafka publicados somente após o commit da transação, em JSON sem cabeçalhos de tipo Java
+- Dados pessoais (CPF) nunca aparecem em logs nem em eventos
+- Testes de slice web (`@WebMvcTest`) para os controllers; rode `./mvnw test` ao final
+
+## Infraestrutura local
+
+- `docker compose up -d` na raiz sobe `postgres-administrativa` (porta `15432`, banco
+  `gestao_administrativa`) e o Kafka (`9092`). O `gestao-escolar-service` adicionará o próprio
+  Postgres ao mesmo arquivo.
+- A aplicação roda na porta `8081`.
+
+## Stack técnica do serviço
+
+- Java 21, Spring Boot 4.1
+- Spring Web MVC (REST) + springdoc-openapi (Swagger)
+- Spring Data JPA
+- PostgreSQL 17 + Flyway
+- Spring for Apache Kafka (produtor)
+- Spring Boot Actuator + Micrometer/Prometheus
+- Docker e Kubernetes (Kustomize, minikube)
