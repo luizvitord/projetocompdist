@@ -43,6 +43,7 @@ Novos serviços (relatórios...) entram como novas pastas em
 | Autenticação (JWT) | `usuarios-service` emite o token no login; o `api-gateway` valida e aplica as regras por perfil. O `notificacao-service` também valida, para as notificações e o WebSocket. Os três leem o mesmo Secret `jwt-secret` ([detalhes](../docs/AUTENTICACAO.md)) |
 | Comunicação (Kafka + Spring Cloud Stream, WebSocket) | `notificacao-service` consome os eventos e entrega as notificações em tempo real; com várias réplicas, o tópico interno `notificacao.criada` leva o aviso à réplica em que o usuário está conectado ([detalhes](../notificacao-service/README.md)) |
 | Monitoramento (Prometheus + Grafana) | O Prometheus descobre os pods anotados com `prometheus.io/*` no namespace (ServiceAccount + Role, sem ClusterRole), avalia as mesmas regras de alerta do Compose e alimenta o dashboard do Grafana, provisionado por ConfigMaps ([detalhes](../docs/MONITORAMENTO.md)) |
+| Avaliação (testes de carga) | Perfil HPA do JMeter contra o cluster (`load-tests/executar.ps1 -Alvo minikube`), acompanhado no Grafana ([detalhes](../load-tests/README.md)) |
 | Logs centralizados (preparação) | Logs em JSON (formato ECS), prontos para o ELK |
 
 ## Pré-requisitos
@@ -79,6 +80,30 @@ kubectl get pods -n distrischool -w
 ```
 
 Quando os pods dos serviços estiverem `1/1 Running`, o Flyway já criou as tabelas de cada banco.
+
+### Imagens
+
+| Imagem | Origem |
+|---|---|
+| `gestao-administrativa-service:dev`, `gestao-escolar-service:dev`, `usuarios-service:dev`, `notificacao-service:dev`, `api-gateway:dev2` | construídas no passo 3 (`imagePullPolicy: Never` no overlay) |
+| `postgres:17`, `apache/kafka:4.1.0` | baixadas pelo cluster |
+| `prom/prometheus:v3.15.1`, `grafana/grafana:13.2.6` | baixadas pelo cluster (monitoramento) |
+
+O download dentro do minikube pode ser lento (a imagem do Grafana tem ~490 MB). Se as imagens já
+estiverem no Docker da máquina, carregue-as antes do passo 4:
+
+```sh
+docker pull prom/prometheus:v3.15.1
+docker pull grafana/grafana:13.2.6
+minikube image load prom/prometheus:v3.15.1
+minikube image load grafana/grafana:13.2.6
+```
+
+As imagens dos serviços também podem vir do Docker Compose em vez do `minikube image build`
+(depois de um `docker compose build`), por exemplo:
+`docker tag projetocompdist-notificacao-service:latest notificacao-service:dev` e
+`minikube image load notificacao-service:dev`. Depois de carregar uma imagem nova com a mesma tag,
+rode `kubectl rollout restart deployment <nome> -n distrischool`.
 
 > **Memória.** Use `--memory=8g` quando a máquina permitir: o Docker Desktop precisa ter mais de
 > 8 GB disponíveis (Settings → Resources, ou `memory=` no `.wslconfig` com o backend WSL 2). Com
@@ -157,6 +182,22 @@ Como funciona:
   dados em `emptyDir` e retenção de 6 horas: o histórico recomeça se o pod for recriado.
 
 ## Roteiro de demonstração
+
+Ordem sugerida para uma apresentação:
+
+1. Subir o cluster e conferir os pods (`kubectl get pods -n distrischool`).
+2. Abrir o Prometheus (`/targets`, todos `UP`) e o Grafana pelos port-forwards
+   ([Monitoramento](#monitoramento)).
+3. **Escalabilidade e tolerância a falhas sob carga**: rodar o perfil HPA do JMeter, acompanhar o
+   HPA e o dashboard, e apagar um pod no meio do teste (abaixo).
+4. **Alerta**: `kubectl scale deployment usuarios-service -n distrischool --replicas=0`; em cerca de
+   1 minuto o alerta `ServicoFora` aparece como *firing* em `http://localhost:9090/alerts`. Volte com
+   `--replicas=2`.
+5. **Eventos no Kafka** e **réplica de turmas com circuit breaker** (abaixo).
+
+As notificações em tempo real são mostradas pelo portal, que roda no Docker Compose ou com
+`npm run dev`; o passo a passo está em [docs/NOTIFICACOES.md](../docs/NOTIFICACOES.md). No cluster,
+o WebSocket fica em `ws://127.0.0.1/ws` (com o `minikube tunnel`).
 
 **Autorrecuperação (simulação de falha).** Apague um pod e veja o Kubernetes criar outro no lugar:
 
@@ -264,4 +305,7 @@ para remover o cluster inteiro.
   3 brokers (por exemplo, com o operador Strimzi ou um serviço gerenciado como o Amazon MSK).
 - Cada PostgreSQL roda com uma única instância no cluster. Em produção, o recomendado é um banco
   gerenciado (Amazon RDS ou Azure Database for PostgreSQL).
+- O Prometheus é uma réplica só, com os dados num `emptyDir` e retenção de 6 horas, e não há
+  Alertmanager: os alertas só aparecem no próprio Prometheus. Em produção, o caminho seria o
+  kube-prometheus-stack (Prometheus Operator) com armazenamento persistente e Alertmanager.
 - As credenciais do overlay `minikube` são apenas para desenvolvimento.

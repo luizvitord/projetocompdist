@@ -16,7 +16,8 @@ Arquivos:
 
 | Arquivo | Conteúdo |
 |---|---|
-| `monitoring/prometheus/prometheus.yml` | alvos estáticos (um container por serviço) e o rótulo `servico` de cada um |
+| `monitoring/prometheus/prometheus.yml` | Compose: alvos estáticos (um container por serviço) e o rótulo `servico` de cada um |
+| `k8s/base/monitoring/prometheus/prometheus.yml` | Kubernetes: descoberta dos pods do namespace e rótulos `servico` e `pod` |
 | `k8s/base/monitoring/prometheus/alertas.yml` | regras de alerta (as mesmas no Compose e no Kubernetes) |
 | `k8s/base/monitoring/grafana/datasources.yml` | datasource Prometheus (`http://prometheus:9090`, uid `prometheus`) |
 | `k8s/base/monitoring/grafana/dashboards.yml` | provider que carrega os dashboards de `/var/lib/grafana/dashboards` |
@@ -55,14 +56,36 @@ caminho do controller (`/api/alunos/{id}`).
 ## Percentis de latência
 
 `management.metrics.distribution.percentiles-histogram.http.server.requests=true` faz cada serviço
-publicar o histograma da latência HTTP (`http_server_requests_seconds_bucket`, entre 5 ms e 10 s).
-Com os buckets, o percentil é calculado no Prometheus, somando todas as réplicas:
+publicar o histograma da latência HTTP, `http_server_requests_seconds_bucket`. Cada série do
+histograma é um contador **acumulado**: o bucket `le="0.05"` conta as requisições que levaram até
+50 ms. Os limites são os do Micrometer, recortados por `minimum-expected-value=5ms` e
+`maximum-expected-value=10s`: 50 buckets (5 ms, 5,6 ms, 7 ms, ... 1,07 s, 1,43 s, ... 10 s) mais o
+`+Inf`, cada um entre 9% e 33% maior que o anterior.
+
+O percentil é calculado no Prometheus:
 
 ```promql
-histogram_quantile(0.95, sum by (le, servico) (rate(http_server_requests_seconds_bucket[1m])))
+histogram_quantile(0.95,
+  sum by (le, servico) (rate(http_server_requests_seconds_bucket{uri!~"/actuator.*"}[5m])))
 ```
 
-Um percentil calculado dentro de cada réplica não poderia ser combinado com o das outras.
+1. `rate(...[5m])` transforma cada contador em requisições por segundo nos últimos 5 minutos (no
+   dashboard, `$__rate_interval`). O `rate` vem antes da soma porque os contadores zeram quando uma
+   réplica reinicia, e o `rate` sabe tratar isso.
+2. `sum by (le, servico)` soma os buckets de todas as réplicas (e de todas as rotas) do serviço,
+   mantendo o `le`. Assim o percentil vale para o serviço inteiro, com qualquer número de réplicas.
+3. `histogram_quantile(0.95, ...)` acha o primeiro bucket em que a contagem acumulada passa de 95% do
+   total e interpola linearmente dentro dele. O resultado é uma estimativa: o erro fica dentro da
+   largura daquele bucket (por exemplo, um p95 de 0,9 s está entre 0,805 s e 0,984 s).
+
+Por que não usar percentis calculados na aplicação (`percentiles=0.95`)? Cada réplica calcularia o
+seu, sobre as próprias requisições, e não existe forma correta de combinar o p95 de duas réplicas
+(a média dos p95 não é o p95). Os buckets podem ser somados; os percentis, não.
+
+O JMeter calcula os percentis de forma exata sobre todas as amostras do teste, do lado do cliente
+(com a rede e a fila do gateway). Por isso o p95 do relatório do JMeter fica perto do p95 do
+`api-gateway` no Grafana, mas não é igual; veja
+[load-tests/README.md](../load-tests/README.md#lendo-o-relatório-do-jmeter).
 
 ## Kubernetes
 
@@ -95,7 +118,8 @@ As taxas usam `$__rate_interval` (no mínimo 4 × o intervalo de coleta, 20 s). 
 | Sessões WebSocket | usuários conectados agora | `sum(websocket_sessoes_ativas)` |
 
 Gauges que todas as réplicas leem da mesma fonte (tabela da outbox, lag do grupo) usam `max`, e não
-`sum`, para não multiplicar o valor pelo número de réplicas.
+`sum`, para não multiplicar o valor pelo número de réplicas. O circuit breaker também usa `max`:
+cada réplica tem o seu, e o painel mostra o pior estado entre elas.
 
 Sobre o lag do Kafka:
 
@@ -108,8 +132,7 @@ Sobre o lag do Kafka:
 - O cliente publica cada tópico duas vezes (`schedule.updated` e `schedule_updated`); as consultas
   só usam a forma com ponto.
 - `kafka_consumer_fetch_manager_records_lag_max` não é usado: depois que o consumidor reinicia, a
-  série vira `NaN` e a versão sem rótulo `topic` desaparece. O circuit breaker também usa `max`:
-cada réplica tem o seu, e o painel mostra o pior estado entre elas.
+  série vira `NaN` e a versão sem rótulo `topic` desaparece.
 
 ## Alertas
 
