@@ -1,19 +1,31 @@
-# Regras de alerta do DistriSchool. Aparecem em http://localhost:9090/alerts (nao ha Alertmanager:
-# os alertas so ficam visiveis no proprio Prometheus).
+# Regras de alerta do DistriSchool, as mesmas no Docker Compose e no Kubernetes. O arquivo fica aqui
+# porque o Kustomize so le arquivos dentro da pasta da kustomization; o Compose monta este mesmo
+# arquivo. Aparecem em http://localhost:9090/alerts (nao ha Alertmanager: os alertas so ficam
+# visiveis no proprio Prometheus).
 #
 # Os nomes das metricas foram conferidos na saida real de /actuator/prometheus dos servicos
-# (docs/MONITORAMENTO.md). O rotulo "servico" vem da configuracao de coleta.
+# (docs/MONITORAMENTO.md). O rotulo "servico" vem da configuracao de coleta (alvo estatico no
+# Compose, rotulo app.kubernetes.io/name do pod no Kubernetes).
 groups:
   - name: distrischool
     rules:
+      # up == 0: o alvo existe e nao responde (no Compose, o container parado continua sendo alvo).
+      # absent(...): o servico nao tem nenhum alvo. No Kubernetes so os pods prontos sao coletados,
+      # entao um Deployment com todas as replicas fora (ou com 0 replicas) some da lista de alvos.
       - alert: ServicoFora
-        expr: up == 0
+        expr: |
+          up == 0
+          or absent(up{servico="api-gateway"})
+          or absent(up{servico="gestao-administrativa-service"})
+          or absent(up{servico="gestao-escolar-service"})
+          or absent(up{servico="usuarios-service"})
+          or absent(up{servico="notificacao-service"})
         for: 1m
         labels:
           severidade: critica
         annotations:
           resumo: "{{ $labels.servico }} fora do ar"
-          descricao: "O alvo {{ $labels.instance }} nao responde a coleta ha mais de 1 minuto."
+          descricao: "O servico {{ $labels.servico }} nao responde a coleta ha mais de 1 minuto ({{ $labels.instance }})."
 
       # p95 de todas as replicas juntas, sem os endpoints do Actuator (coleta e probes)
       - alert: LatenciaP95Alta

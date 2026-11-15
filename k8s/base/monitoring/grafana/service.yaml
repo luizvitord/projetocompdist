@@ -1,0 +1,15 @@
+# Acesso: kubectl port-forward -n distrischool svc/grafana 3001:3000 (nao fica no Ingress)
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: distrischool
+spec:
+  selector:
+    app.kubernetes.io/name: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

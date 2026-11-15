@@ -1,8 +1,8 @@
 # Kubernetes — DistriSchool
 
 Manifests para implantar o `gestao-administrativa-service`, o `gestao-escolar-service`, o
-`usuarios-service`, o `notificacao-service`, o `api-gateway` e a infraestrutura deles (um PostgreSQL
-por serviço e o Kafka) no Kubernetes. Os arquivos são organizados com
+`usuarios-service`, o `notificacao-service`, o `api-gateway`, a infraestrutura deles (um PostgreSQL
+por serviço e o Kafka) e o monitoramento (Prometheus e Grafana) no Kubernetes. Os arquivos são organizados com
 [Kustomize](https://kustomize.io/), que já vem embutido no `kubectl`:
 
 ```
@@ -19,7 +19,10 @@ k8s/
 │   ├── gestao-escolar-service/  # Deployment + Service + HPA + PDB
 │   ├── usuarios-service/        # Deployment + Service + HPA + PDB (login e JWT)
 │   ├── notificacao-service/     # Deployment + Service + HPA + PDB (notificações e WebSocket)
-│   └── api-gateway/             # Deployment + Service + HPA + PDB (valida o JWT)
+│   ├── api-gateway/             # Deployment + Service + HPA + PDB (valida o JWT)
+│   └── monitoring/
+│       ├── prometheus/          # Deployment + Service + RBAC; prometheus.yml e alertas.yml
+│       └── grafana/             # Deployment + Service; datasource e dashboards (também usados pelo Compose)
 └── overlays/
     └── minikube/                # desenvolvimento local: imagens locais + Secrets de dev
 ```
@@ -39,7 +42,7 @@ Novos serviços (relatórios...) entram como novas pastas em
 | Configuração de ambientes | ConfigMaps (`gestao-administrativa-config`, `gestao-escolar-config`, `usuarios-config`, `notificacao-config`, `api-gateway-config`) e Secrets (credenciais de cada Postgres e `jwt-secret`) |
 | Autenticação (JWT) | `usuarios-service` emite o token no login; o `api-gateway` valida e aplica as regras por perfil. O `notificacao-service` também valida, para as notificações e o WebSocket. Os três leem o mesmo Secret `jwt-secret` ([detalhes](../docs/AUTENTICACAO.md)) |
 | Comunicação (Kafka + Spring Cloud Stream, WebSocket) | `notificacao-service` consome os eventos e entrega as notificações em tempo real; com várias réplicas, o tópico interno `notificacao.criada` leva o aviso à réplica em que o usuário está conectado ([detalhes](../notificacao-service/README.md)) |
-| Monitoramento (preparação) | `/actuator/prometheus` exposto e anotações `prometheus.io/*` nos pods |
+| Monitoramento (Prometheus + Grafana) | O Prometheus descobre os pods anotados com `prometheus.io/*` no namespace (ServiceAccount + Role, sem ClusterRole), avalia as mesmas regras de alerta do Compose e alimenta o dashboard do Grafana, provisionado por ConfigMaps ([detalhes](../docs/MONITORAMENTO.md)) |
 | Logs centralizados (preparação) | Logs em JSON (formato ECS), prontos para o ELK |
 
 ## Pré-requisitos
@@ -53,8 +56,9 @@ Novos serviços (relatórios...) entram como novas pastas em
 Os comandos abaixo valem para PowerShell e para bash, e devem ser executados na raiz do repositório.
 
 ```sh
-# 1. Cria o cluster (4 Postgres + Kafka + 2 réplicas de cada serviço precisam de ~6 GB)
-minikube start --driver=docker --cpus=4 --memory=6g
+# 1. Cria o cluster (4 Postgres + Kafka + 2 réplicas de cada serviço + monitoramento precisam
+#    de ~6 GB; com 8 GB sobra espaço para o HPA criar réplicas no teste de carga)
+minikube start --driver=docker --cpus=4 --memory=8g
 
 # 2. Habilita o Ingress e o metrics-server (necessário para o HPA)
 minikube addons enable ingress
@@ -75,6 +79,12 @@ kubectl get pods -n distrischool -w
 ```
 
 Quando os pods dos serviços estiverem `1/1 Running`, o Flyway já criou as tabelas de cada banco.
+
+> **Memória.** Use `--memory=8g` quando a máquina permitir: o Docker Desktop precisa ter mais de
+> 8 GB disponíveis (Settings → Resources, ou `memory=` no `.wslconfig` com o backend WSL 2). Com
+> menos, use `--memory=6g`: tudo sobe, mas o HPA tem pouco espaço para réplicas extras. O Docker
+> Compose e o minikube juntos não cabem em 8 GB; pare um (`docker compose stop`) antes de subir o
+> outro.
 
 > Se já existir um cluster minikube, o `minikube start` ignora `--cpus` e `--memory` e mantém
 > os recursos antigos. Com 2 CPUs o ambiente sobe, mas o HPA não tem espaço para criar
@@ -117,6 +127,35 @@ kubectl port-forward -n distrischool svc/gestao-escolar-service 8082:8082
 As APIs ficam em `http://localhost:8081/api/...` e `http://localhost:8082/api/...`, e o Actuator
 em `/actuator/health` de cada porta.
 
+## Monitoramento
+
+O Prometheus e o Grafana não ficam no Ingress; o acesso é por port-forward (um terminal para cada):
+
+```sh
+kubectl port-forward -n distrischool svc/prometheus 9090
+kubectl port-forward -n distrischool svc/grafana 3001:3000
+```
+
+- Prometheus: `http://localhost:9090/targets` (um alvo por pod pronto, todos `UP`) e
+  `http://localhost:9090/alerts`
+- Grafana: `http://localhost:3001`, usuário `admin` e senha `distrischool` (Secret `grafana-admin`
+  do overlay). O dashboard **DistriSchool — Visão geral** abre na página inicial.
+
+Como funciona:
+
+- O Prometheus descobre os pods do namespace `distrischool` (`kubernetes_sd_configs`, `role: pod`)
+  e coleta os que têm `prometheus.io/scrape: "true"`, na porta e no caminho das anotações. Só entram
+  os pods prontos: uma réplica nova ainda subindo a JVM não aparece como fora do ar. O rótulo
+  `servico` vem de `app.kubernetes.io/name`, e `pod`/`instance` são o nome do pod.
+- A permissão é um Role no namespace (ler pods), ligado à ServiceAccount `prometheus`; não há
+  ClusterRole.
+- As regras de alerta (`base/monitoring/prometheus/alertas.yml`) e os arquivos do Grafana
+  (`base/monitoring/grafana/`) são os mesmos que o Docker Compose monta. Os ConfigMaps são gerados
+  pelo Kustomize com sufixo de hash: depois de editar um desses arquivos, `kubectl apply -k` recria
+  o pod com a configuração nova.
+- Recursos pequenos (requests de 50m de CPU; 192 Mi para o Prometheus e 128 Mi para o Grafana),
+  dados em `emptyDir` e retenção de 6 horas: o histórico recomeça se o pod for recriado.
+
 ## Roteiro de demonstração
 
 **Autorrecuperação (simulação de falha).** Apague um pod e veja o Kubernetes criar outro no lugar:
@@ -129,12 +168,16 @@ kubectl get pods -n distrischool -w
 
 Durante a recriação, a outra réplica continua atendendo as requisições.
 
-**Escalabilidade.** Acompanhe o HPA e gere carga (por exemplo, com JMeter) para ver o número
-de réplicas subir:
+**Escalabilidade.** Abra o Grafana (port-forward acima), acompanhe o HPA e gere carga (por
+exemplo, com JMeter) para ver o número de réplicas subir:
 
 ```sh
 kubectl get hpa -n distrischool -w
 ```
+
+No dashboard, o painel **Réplicas ativas** acompanha o HPA, e os painéis de throughput, latência e
+CPU mostram o efeito das réplicas novas. Apagar um pod no meio do teste (roteiro de
+autorrecuperação acima) aparece como uma queda temporária em **Réplicas ativas**, sem erros 5xx.
 
 Logo depois de habilitar o metrics-server, o HPA mostra `cpu: <unknown>` por cerca de um minuto,
 até a primeira coleta de métricas.

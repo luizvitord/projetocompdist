@@ -22,4 +22,4 @@ Login: `coordenacao@distrischool.com` / `123456` (administrador criado pela migr
 
 ## Kubernetes
 
-Use `kubectl apply -k k8s/overlays/minikube`. O Ingress expõe o API Gateway para `/api`, `/administrativa`, `/escolar`, `/usuarios` e `/notificacao`; os serviços de negócio permanecem internos. A única exceção é o WebSocket das notificações (`/ws`), que vai direto para o `notificacao-service` porque o gateway não faz proxy de WebSocket ([detalhes](docs/AUTENTICACAO.md)).
+Use `kubectl apply -k k8s/overlays/minikube`. O Ingress expõe o API Gateway para `/api`, `/administrativa`, `/escolar`, `/usuarios` e `/notificacao`; os serviços de negócio permanecem internos. A única exceção é o WebSocket das notificações (`/ws`), que vai direto para o `notificacao-service` porque o gateway não faz proxy de WebSocket ([detalhes](docs/AUTENTICACAO.md)). O Prometheus e o Grafana também sobem no cluster e são acessados por port-forward (`kubectl port-forward -n distrischool svc/prometheus 9090` e `svc/grafana 3001:3000`); veja o [k8s/README.md](k8s/README.md#monitoramento).

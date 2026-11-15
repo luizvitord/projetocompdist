@@ -36,6 +36,12 @@ resources:
   - api-gateway/hpa.yaml
   - api-gateway/pdb.yaml
   - ingress.yaml
+  # Monitoramento (acesso so por port-forward, fora do Ingress)
+  - monitoring/prometheus/rbac.yaml
+  - monitoring/prometheus/service.yaml
+  - monitoring/prometheus/deployment.yaml
+  - monitoring/grafana/service.yaml
+  - monitoring/grafana/deployment.yaml
 
 # Configuracao nao sensivel do gestao-administrativa-service (lida via envFrom).
 # O Secret postgres-administrativa-credentials e definido em cada overlay.
@@ -81,3 +87,18 @@ configMapGenerator:
       - USUARIOS_URL=http://usuarios-service:8083
       - NOTIFICACAO_URL=http://notificacao-service:8084
       - FRONTEND_ORIGIN=http://localhost:5173
+  # Configuracao do Prometheus: descoberta de pods e as mesmas regras de alerta do Docker Compose
+  - name: prometheus-config
+    files:
+      - monitoring/prometheus/prometheus.yml
+      - monitoring/prometheus/alertas.yml
+  # Provisionamento do Grafana: os mesmos arquivos que o Docker Compose monta
+  - name: grafana-datasources
+    files:
+      - monitoring/grafana/datasources.yml
+  - name: grafana-dashboards-provider
+    files:
+      - monitoring/grafana/dashboards.yml
+  - name: grafana-dashboards
+    files:
+      - monitoring/grafana/distrischool-visao-geral.json

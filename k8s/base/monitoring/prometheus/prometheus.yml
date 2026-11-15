@@ -1,0 +1,48 @@
+# Prometheus do Kubernetes. Descobre os pods do namespace distrischool pela API do Kubernetes
+# (permissao dada pelo Role prometheus, sem ClusterRole) e coleta os que tem a anotacao
+# prometheus.io/scrape: "true", na porta e no caminho das anotacoes prometheus.io/port e
+# prometheus.io/path. As regras de alerta (alertas.yml) sao as mesmas do Docker Compose.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - /etc/prometheus/alertas.yml
+
+scrape_configs:
+  - job_name: distrischool
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [distrischool]
+    relabel_configs:
+      # So os pods anotados
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        regex: "true"
+        action: keep
+      # O role pod tambem devolve os init containers (wait-for-postgres); eles nao tem metricas
+      - source_labels: [__meta_kubernetes_pod_container_init]
+        regex: "false"
+        action: keep
+      # So pods prontos (readiness OK). Uma replica nova do HPA ainda subindo a JVM, ou um pod
+      # encerrando, nao aparece como "fora". Quando nenhuma replica de um servico esta pronta,
+      # o alerta ServicoFora dispara pelo absent(...).
+      - source_labels: [__meta_kubernetes_pod_ready]
+        regex: "true"
+        action: keep
+      # Endereco: IP do pod + porta da anotacao
+      - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        regex: (.+);(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        regex: (.+)
+        target_label: __metrics_path__
+      # Rotulos usados nos dashboards e alertas: servico (nome da aplicacao) e pod. O instance
+      # passa a ser o nome do pod, mais legivel que IP:porta nas legendas.
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        target_label: servico
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: instance

@@ -88,3 +88,9 @@ secretGenerator:
     namespace: distrischool
     literals:
       - JWT_SECRET=distrischool-segredo-de-desenvolvimento-minikube
+  # Administrador do Grafana (acesso por port-forward)
+  - name: grafana-admin
+    namespace: distrischool
+    literals:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=distrischool

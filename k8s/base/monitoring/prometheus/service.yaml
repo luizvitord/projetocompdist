@@ -1,0 +1,15 @@
+# Acesso: kubectl port-forward -n distrischool svc/prometheus 9090 (nao fica no Ingress)
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: distrischool
+spec:
+  selector:
+    app.kubernetes.io/name: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http

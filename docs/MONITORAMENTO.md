@@ -17,13 +17,13 @@ Arquivos:
 | Arquivo | Conteúdo |
 |---|---|
 | `monitoring/prometheus/prometheus.yml` | alvos estáticos (um container por serviço) e o rótulo `servico` de cada um |
-| `monitoring/prometheus/alertas.yml` | regras de alerta |
+| `k8s/base/monitoring/prometheus/alertas.yml` | regras de alerta (as mesmas no Compose e no Kubernetes) |
 | `k8s/base/monitoring/grafana/datasources.yml` | datasource Prometheus (`http://prometheus:9090`, uid `prometheus`) |
 | `k8s/base/monitoring/grafana/dashboards.yml` | provider que carrega os dashboards de `/var/lib/grafana/dashboards` |
 | `k8s/base/monitoring/grafana/distrischool-visao-geral.json` | o dashboard |
 
-Os arquivos do Grafana ficam em `k8s/base/monitoring/grafana/` porque o Kustomize só lê arquivos
-dentro da pasta da kustomization; o Compose monta essa mesma pasta. A URL do datasource é a mesma
+As regras de alerta e os arquivos do Grafana ficam em `k8s/base/monitoring/` porque o Kustomize só
+lê arquivos dentro da pasta da kustomization; o Compose monta esses mesmos arquivos. A URL do datasource é a mesma
 nos dois ambientes (o Service do Kubernetes também se chama `prometheus`). Nada é configurado pela
 interface: para mudar um painel, edite o JSON e reinicie o Grafana (ou espere 30 s, o intervalo de
 releitura do provider).
@@ -64,6 +64,14 @@ histogram_quantile(0.95, sum by (le, servico) (rate(http_server_requests_seconds
 
 Um percentil calculado dentro de cada réplica não poderia ser combinado com o das outras.
 
+## Kubernetes
+
+O Prometheus (`k8s/base/monitoring/prometheus/prometheus.yml`) descobre os pods do namespace
+`distrischool` pela API do Kubernetes e coleta os pods prontos que têm a anotação
+`prometheus.io/scrape: "true"`. O rótulo `servico` vem de `app.kubernetes.io/name`; `pod` e
+`instance` são o nome do pod. O acesso é por port-forward (`svc/prometheus 9090`,
+`svc/grafana 3001:3000`); veja o [k8s/README.md](../k8s/README.md#monitoramento).
+
 ## Dashboard "DistriSchool — Visão geral"
 
 Variável `servico` (múltipla, padrão: todos), intervalo padrão de 15 min, atualização a cada 5 s.
@@ -75,7 +83,7 @@ As taxas usam `$__rate_interval` (no mínimo 4 × o intervalo de coleta, 20 s). 
 | Throughput por serviço | req/s somando todas as réplicas | `sum by (servico) (rate(http_server_requests_seconds_count[..]))` |
 | Throughput por rota | req/s por `servico` e `uri` | `sum by (servico, uri) (...)` |
 | Latência p50 / p95 / p99 | percentis da latência HTTP de cada serviço | `histogram_quantile(q, sum by (le, servico) (rate(..._bucket[..])))` |
-| Taxa de erros (4xx e 5xx) | % das requisições com cada classe de status | `100 * sum(rate(..{status=~"5.."})) / sum(rate(..))` |
+| Taxa de erros (4xx e 5xx) | % das requisições com cada classe de status; 0% quando não há erros | `100 * (sum(rate(..{status=~"5.."})) or 0 * sum(rate(..))) / sum(rate(..))` |
 | Réplicas ativas | alvos respondendo à coleta; mostra o HPA escalando | `count by (servico) (up == 1)` |
 | CPU do processo | uso de CPU de cada JVM | `process_cpu_usage` |
 | Heap da JVM | heap usada por instância | `sum by (servico, instance) (jvm_memory_used_bytes{area="heap"})` |
@@ -105,17 +113,21 @@ cada réplica tem o seu, e o painel mostra o pior estado entre elas.
 
 ## Alertas
 
-Regras em `monitoring/prometheus/alertas.yml`, visíveis em `http://localhost:9090/alerts`. Não há
+Regras em `k8s/base/monitoring/prometheus/alertas.yml`, visíveis em `http://localhost:9090/alerts`. Não há
 Alertmanager: os alertas só aparecem no Prometheus (e podem ser consultados como a série `ALERTS`).
 
 | Alerta | Condição | Duração |
 |---|---|---|
-| `ServicoFora` | `up == 0` | 1 min |
+| `ServicoFora` | `up == 0`, ou nenhum alvo do serviço (`absent(up{servico="..."})`) | 1 min |
 | `LatenciaP95Alta` | p95 do serviço acima de 1 s | 5 min |
 | `TaxaErros5xxAlta` | mais de 5% das requisições com 5xx | 5 min |
 | `CircuitBreakerAberto` | algum circuit breaker em `open` ou `forced_open` | imediato |
 | `OutboxAcumulada` | mais de 100 eventos pendentes na outbox | 5 min |
 | `LagConsumidorAlto` | mais de 1000 mensagens atrasadas num grupo de consumidores | 5 min |
+
+O `absent(...)` cobre o Kubernetes: como só os pods prontos são coletados, um Deployment sem nenhuma
+réplica pronta some da lista de alvos em vez de aparecer com `up == 0`. No Compose, o container
+parado continua sendo alvo e o alerta vem do `up == 0`.
 
 Para ver um alerta disparar: `docker compose stop usuarios-service` faz `ServicoFora` passar de
 *pending* para *firing* depois de 1 minuto.
