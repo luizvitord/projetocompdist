@@ -107,7 +107,7 @@ $Ctx = @{
 }
 
 $PastaModulos = Join-Path $PSScriptRoot 'e2e'
-foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin', 'SecaoFluxo', 'SecaoNotificacoes',
+foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin', 'SecaoPerfis', 'SecaoFluxo', 'SecaoNotificacoes',
                       'SecaoResiliencia', 'SecaoRateLimit')) {
     . (Join-Path $PastaModulos ($modulo + '.ps1'))
 }
@@ -115,6 +115,7 @@ foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin'
 # Catalogo das secoes, na ordem de execucao. ParaContainers: pulada com -PularResiliencia.
 $Catalogo = @(
     @{ Id = 'login';                      Nome = 'Login e JWT';                                       Funcao = 'Invoke-SecaoLogin';                     ParaContainers = $false }
+    @{ Id = 'perfis';                     Nome = 'Usuarios e perfis de acesso';                       Funcao = 'Invoke-SecaoPerfis';                    ParaContainers = $false }
     @{ Id = 'fluxo';                      Nome = 'Fluxo funcional';                                   Funcao = 'Invoke-SecaoFluxo';                     ParaContainers = $false }
     @{ Id = 'notificacoes';               Nome = 'Notificacoes';                                      Funcao = 'Invoke-SecaoNotificacoes';              ParaContainers = $false }
     @{ Id = 'outbox';                     Nome = 'Outbox com o Kafka fora do ar';                     Funcao = 'Invoke-SecaoOutbox';                    ParaContainers = $true }

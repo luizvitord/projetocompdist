@@ -221,7 +221,10 @@ function Invoke-Login([string]$Email, [string]$Senha) {
     }
     $Ctx.Logins.Add((Get-Date))
     $r = Invoke-Api -Metodo POST -Caminho '/api/auth/login' -SemToken -Corpo @{ email = $Email; senha = $Senha }
-    if ($r.Status -eq 429) {
+    # Outra execucao recente (ou a secao ratelimit dela) pode ter esvaziado o balde do gateway
+    $tentativas = 0
+    while ($r.Status -eq 429 -and $tentativas -lt 4) {
+        $tentativas++
         $retry = 10
         try { $retry = [int]$r.Headers['Retry-After'] + 1 } catch { $retry = 10 }
         Write-Info ('Login recebeu 429; aguardando ' + $retry + ' s (Retry-After)...')
