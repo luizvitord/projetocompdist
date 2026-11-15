@@ -107,7 +107,7 @@ $Ctx = @{
 }
 
 $PastaModulos = Join-Path $PSScriptRoot 'e2e'
-foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin', 'SecaoPerfis', 'SecaoAdministrativa', 'SecaoEscolar', 'SecaoFluxo', 'SecaoNotificacoes',
+foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin', 'SecaoPerfis', 'SecaoInfra', 'SecaoAdministrativa', 'SecaoEscolar', 'SecaoFluxo', 'SecaoNotificacoes',
                       'SecaoResiliencia', 'SecaoRateLimit')) {
     . (Join-Path $PastaModulos ($modulo + '.ps1'))
 }
@@ -116,6 +116,7 @@ foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin'
 $Catalogo = @(
     @{ Id = 'login';                      Nome = 'Login e JWT';                                       Funcao = 'Invoke-SecaoLogin';                     ParaContainers = $false }
     @{ Id = 'perfis';                     Nome = 'Usuarios e perfis de acesso';                       Funcao = 'Invoke-SecaoPerfis';                    ParaContainers = $false }
+    @{ Id = 'infra';                      Nome = 'Infraestrutura e observabilidade';                  Funcao = 'Invoke-SecaoInfra';                     ParaContainers = $false }
     @{ Id = 'administrativa';             Nome = 'Gestao administrativa';                             Funcao = 'Invoke-SecaoAdministrativa';            ParaContainers = $false }
     @{ Id = 'alunos';                     Nome = 'Alunos';                                            Funcao = 'Invoke-SecaoAlunos';                    ParaContainers = $false }
     @{ Id = 'matriculas';                 Nome = 'Matriculas';                                        Funcao = 'Invoke-SecaoMatriculas';                ParaContainers = $false }
