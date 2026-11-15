@@ -18,6 +18,8 @@ Para desenvolvimento do frontend: inicie a infraestrutura e os serviços, depois
 
 Monitoramento: o Compose também sobe o Prometheus em `http://localhost:9090` (alvos em `/targets`, alertas em `/alerts`) e o Grafana em `http://localhost:3001` (`admin` / `distrischool`), já com o dashboard **DistriSchool — Visão geral** (throughput, latência p50/p95/p99, erros, réplicas, JVM, HikariCP, circuit breakers, outbox, lag do Kafka e notificações). Detalhes em [docs/MONITORAMENTO.md](docs/MONITORAMENTO.md).
 
+Testes de carga: `.\load-tests\executar.ps1 -Perfil fumaca -Alvo compose` roda o JMeter pelo Docker (sem instalação) e gera o relatório HTML; perfis, roteiro de demonstração e como ler o relatório em [load-tests/README.md](load-tests/README.md).
+
 Login: `coordenacao@distrischool.com` / `123456` (administrador criado pela migration do `usuarios-service`). O login devolve um JWT que o API Gateway exige em todas as rotas `/api`; perfis e permissões estão em [docs/AUTENTICACAO.md](docs/AUTENTICACAO.md).
 
 ## Kubernetes

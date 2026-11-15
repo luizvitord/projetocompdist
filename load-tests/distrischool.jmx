@@ -1,0 +1,668 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="DistriSchool - carga">
+      <stringProp name="TestPlan.comments">DistriSchool: cenario misto pelo api-gateway. Propriedades (-J): host, porta, protocolo, usuarios, rampa, duracao, email, senha, alunosMassa. Veja load-tests/README.md.</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+        <collectionProp name="Arguments.arguments" />
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Variaveis da execucao">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="runId" elementType="Argument">
+            <stringProp name="Argument.name">runId</stringProp>
+            <stringProp name="Argument.value">${__time(yyMMddHHmmss,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="ano" elementType="Argument">
+            <stringProp name="Argument.name">ano</stringProp>
+            <stringProp name="Argument.value">${__time(yyyy,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="hoje" elementType="Argument">
+            <stringProp name="Argument.name">hoje</stringProp>
+            <stringProp name="Argument.value">${__time(yyyy-MM-dd,)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </Arguments>
+      <hashTree />
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="Padroes HTTP (host, porta, protocolo)">
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+          <collectionProp name="Arguments.arguments" />
+        </elementProp>
+        <stringProp name="HTTPSampler.domain">${__P(host,localhost)}</stringProp>
+        <stringProp name="HTTPSampler.port">${__P(porta,8080)}</stringProp>
+        <stringProp name="HTTPSampler.protocol">${__P(protocolo,http)}</stringProp>
+        <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+        <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">5000</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">30000</stringProp>
+      </ConfigTestElement>
+      <hashTree />
+      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Content-Type e Accept JSON">
+        <collectionProp name="HeaderManager.headers">
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">Content-Type</stringProp>
+            <stringProp name="Header.value">application/json</stringProp>
+          </elementProp>
+          <elementProp name="" elementType="Header">
+            <stringProp name="Header.name">Accept</stringProp>
+            <stringProp name="Header.value">application/json</stringProp>
+          </elementProp>
+        </collectionProp>
+      </HeaderManager>
+      <hashTree />
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="setUp - login e massa de dados">
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">1</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration" />
+        <stringProp name="ThreadGroup.delay" />
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="TestPlan.comments">Roda uma vez, antes dos grupos principais. Qualquer falha encerra o teste.</stringProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="setUp - POST /api/auth/login">
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{"email": "${__P(email,coordenacao@distrischool.com)}", "senha": "${__P(senha,123456)}"}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="HTTPSampler.path">/api/auth/login</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          <stringProp name="TestPlan.comments">Unico login da execucao: o gateway limita o login a 10 por minuto por IP</stringProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Status 2xx">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">2\d\d</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message" />
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">1</intProp>
+          </ResponseAssertion>
+          <hashTree />
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extrai token">
+            <stringProp name="JSONPostProcessor.referenceNames">token</stringProp>
+            <stringProp name="JSONPostProcessor.jsonPathExprs">$.token</stringProp>
+            <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+            <stringProp name="JSONPostProcessor.defaultValues">SEM_TOKEN</stringProp>
+          </JSONPostProcessor>
+          <hashTree />
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Compartilha o token">
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="parameters" />
+            <stringProp name="filename" />
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script">props.put('token', vars.get('token'))</stringProp>
+            <stringProp name="TestPlan.comments">Propriedades sao globais: os grupos principais leem ${__P(token)}</stringProp>
+          </JSR223PostProcessor>
+          <hashTree />
+        </hashTree>
+        <GenericController guiclass="LogicControllerGui" testclass="GenericController" testname="setUp - massa de dados">
+          <stringProp name="TestPlan.comments">Dados proprios da execucao: os codigos levam o runId, entao execucoes repetidas nao colidem (sem 409)</stringProp>
+        </GenericController>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: Bearer (token do setUp)">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Bearer ${__P(token)}</stringProp>
+              </elementProp>
+            </collectionProp>
+            <stringProp name="TestPlan.comments">O token vem do login unico do setUp, guardado na propriedade token</stringProp>
+          </HeaderManager>
+          <hashTree />
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Status 2xx">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">2\d\d</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message" />
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">1</intProp>
+          </ResponseAssertion>
+          <hashTree />
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="setUp - POST /api/disciplinas">
+            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.value">{"codigo": "DC${runId}", "nome": "Disciplina Carga ${runId}", "cargaHoraria": 80}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                </elementProp>
+              </collectionProp>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/disciplinas</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extrai disciplinaId">
+              <stringProp name="JSONPostProcessor.referenceNames">disciplinaId</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.id</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">0</stringProp>
+            </JSONPostProcessor>
+            <hashTree />
+          </hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="setUp - POST /api/professores">
+            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.value">{"nome": "Professor Carga ${runId}", "qualificacao": "Licenciatura", "email": "prof.carga.${runId}@distrischool.com", "telefone": "11999990000"}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                </elementProp>
+              </collectionProp>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/professores</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extrai professorId">
+              <stringProp name="JSONPostProcessor.referenceNames">professorId</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.id</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">0</stringProp>
+            </JSONPostProcessor>
+            <hashTree />
+          </hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="setUp - POST /api/turmas">
+            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.value">{"codigo": "T-CARGA-${runId}", "nome": "Turma Carga ${runId}", "anoLetivo": ${ano}, "turno": "MANHA", "capacidade": 40}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                </elementProp>
+              </collectionProp>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/turmas</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extrai turmaId">
+              <stringProp name="JSONPostProcessor.referenceNames">turmaId</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.id</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">0</stringProp>
+            </JSONPostProcessor>
+            <hashTree />
+          </hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="setUp - PUT /api/turmas/{id}/disciplinas/{disciplinaId}">
+            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.value">{"professorId": ${professorId}}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                </elementProp>
+              </collectionProp>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/turmas/${turmaId}/disciplinas/${disciplinaId}</stringProp>
+            <stringProp name="HTTPSampler.method">PUT</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Compartilha turma e disciplina">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters" />
+              <stringProp name="filename" />
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">['turmaId', 'disciplinaId', 'professorId'].each { props.put(it, vars.get(it)) }</stringProp>
+            </JSR223PostProcessor>
+            <hashTree />
+          </hashTree>
+          <LoopController guiclass="LoopControlPanel" testclass="LoopController" testname="setUp - alunos matriculados (alunosMassa)">
+            <boolProp name="LoopController.continue_forever">true</boolProp>
+            <stringProp name="LoopController.loops">${__P(alunosMassa,5)}</stringProp>
+          </LoopController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="setUp - POST /api/alunos">
+              <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">{"nome": "Aluno Carga ${runId} ${__counter(TRUE,)}", "dataNascimento": "2012-05-10", "email": "aluno.carga.${runId}.${__UUID()}@distrischool.com", "telefone": "11988880000"}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/alunos</stringProp>
+              <stringProp name="HTTPSampler.method">POST</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extrai alunoId">
+                <stringProp name="JSONPostProcessor.referenceNames">alunoId</stringProp>
+                <stringProp name="JSONPostProcessor.jsonPathExprs">$.id</stringProp>
+                <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+                <stringProp name="JSONPostProcessor.defaultValues">0</stringProp>
+              </JSONPostProcessor>
+              <hashTree />
+              <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extrai matricula">
+                <stringProp name="JSONPostProcessor.referenceNames">matricula</stringProp>
+                <stringProp name="JSONPostProcessor.jsonPathExprs">$.matricula</stringProp>
+                <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+                <stringProp name="JSONPostProcessor.defaultValues">SEM_MATRICULA</stringProp>
+              </JSONPostProcessor>
+              <hashTree />
+            </hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="setUp - POST /api/matriculas">
+              <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">{"matriculaAluno": "${matricula}", "turmaId": ${turmaId}}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/matriculas</stringProp>
+              <stringProp name="HTTPSampler.method">POST</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Acumula alunos">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="parameters" />
+                <stringProp name="filename" />
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">// Junta os ids e numeros de matricula dos alunos criados, para os grupos principais
+def junta = { String nome, String valor -&gt;
+    def atual = vars.get(nome)
+    vars.put(nome, atual ? atual + ',' + valor : valor)
+    props.put(nome, vars.get(nome))
+}
+junta('alunoIds', vars.get('alunoId'))
+junta('matriculas', vars.get('matricula'))</stringProp>
+              </JSR223PostProcessor>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <GenericController guiclass="LogicControllerGui" testclass="GenericController" testname="setUp - aguardar a oferta no gestao-escolar-service">
+          <stringProp name="TestPlan.comments">Sem Response Assertion aqui: as tentativas com 422 nao contam como erro; so a ultima, se falhar</stringProp>
+        </GenericController>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: Bearer (token do setUp)">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Bearer ${__P(token)}</stringProp>
+              </elementProp>
+            </collectionProp>
+            <stringProp name="TestPlan.comments">O token vem do login unico do setUp, guardado na propriedade token</stringProp>
+          </HeaderManager>
+          <hashTree />
+          <WhileController guiclass="WhileControllerGui" testclass="WhileController" testname="Ate a oferta chegar (no maximo 30 s)">
+            <stringProp name="WhileController.condition">${__groovy(vars.get('ofertaPronta') != 'true',)}</stringProp>
+          </WhileController>
+          <hashTree>
+            <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="1 s entre tentativas">
+              <stringProp name="ConstantTimer.delay">1000</stringProp>
+            </ConstantTimer>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="setUp - POST /api/avaliacoes (primeira avaliacao)">
+              <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">{"turmaId": ${turmaId}, "disciplinaId": ${disciplinaId}, "bimestre": 1, "tipo": "PROVA", "descricao": "Carga ${runId} (setUp)", "peso": 1, "notaMaxima": 10, "data": "${hoje}"}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/avaliacoes</stringProp>
+              <stringProp name="HTTPSampler.method">POST</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Repete enquanto a oferta nao chegou">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="parameters" />
+                <stringProp name="filename" />
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">// A avaliacao exige a oferta da disciplina na replica local do gestao-escolar-service, que chega
+// pelo Kafka (schedule.updated). Enquanto ela nao chega, a resposta e 422: tenta de novo em 1 s.
+int tentativa = ((vars.get('tentativa') ?: '0') as int) + 1
+vars.put('tentativa', tentativa as String)
+if (prev.getResponseCode().startsWith('2')) {
+    vars.put('ofertaPronta', 'true')
+} else if (tentativa &gt;= 30) {
+    vars.put('ofertaPronta', 'true')
+    prev.setSuccessful(false)
+    prev.setResponseMessage('Oferta da disciplina nao replicada depois de 30 tentativas')
+} else {
+    prev.setSampleLabel(prev.getSampleLabel() + ' (aguardando replicacao)')
+    prev.setSuccessful(true)
+}</stringProp>
+              </JSR223PostProcessor>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+      </hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Usuarios (cenario misto)">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">-1</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(usuarios,5)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(rampa,10)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(duracao,60)}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <boolProp name="ThreadGroup.delayedStart">false</boolProp>
+        <stringProp name="TestPlan.comments">usuarios, rampa (s) e duracao (s, contando a rampa) vem das propriedades -J</stringProp>
+      </ThreadGroup>
+      <hashTree>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Authorization: Bearer (token do setUp)">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">Authorization</stringProp>
+              <stringProp name="Header.value">Bearer ${__P(token)}</stringProp>
+            </elementProp>
+          </collectionProp>
+          <stringProp name="TestPlan.comments">O token vem do login unico do setUp, guardado na propriedade token</stringProp>
+        </HeaderManager>
+        <hashTree />
+        <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Status 2xx">
+          <collectionProp name="Asserion.test_strings">
+            <stringProp name="49586">2\d\d</stringProp>
+          </collectionProp>
+          <stringProp name="Assertion.custom_message" />
+          <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+          <boolProp name="Assertion.assume_success">false</boolProp>
+          <intProp name="Assertion.test_type">1</intProp>
+        </ResponseAssertion>
+        <hashTree />
+        <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Think time de 300 a 1000 ms">
+          <stringProp name="ConstantTimer.delay">300</stringProp>
+          <stringProp name="RandomTimer.range">700</stringProp>
+          <stringProp name="TestPlan.comments">Pausa antes de cada requisicao</stringProp>
+        </UniformRandomTimer>
+        <hashTree />
+        <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="Leitura (70%)">
+          <intProp name="ThroughputController.style">1</intProp>
+          <boolProp name="ThroughputController.perThread">false</boolProp>
+          <intProp name="ThroughputController.maxThroughput">1</intProp>
+          <FloatProperty>
+            <name>ThroughputController.percentThroughput</name>
+            <value>70.0</value>
+            <savedValue>0.0</savedValue>
+          </FloatProperty>
+          <stringProp name="TestPlan.comments">Listagens com e sem filtro, detalhe de turma, boletim e frequencia</stringProp>
+        </ThroughputController>
+        <hashTree>
+          <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="Uma leitura por vez">
+            <intProp name="InterleaveControl.style">1</intProp>
+            <stringProp name="TestPlan.comments">Sorteia uma das leituras a cada execucao</stringProp>
+          </RandomController>
+          <hashTree>
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Sorteia um aluno da massa">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters" />
+              <stringProp name="filename" />
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">def ids = props.get('alunoIds').split(',')
+vars.put('alunoId', ids[java.util.concurrent.ThreadLocalRandom.current().nextInt(ids.length)])</stringProp>
+            </JSR223PreProcessor>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/alunos (paginado)">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/alunos?page=${__Random(0,2,)}&amp;size=20</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/alunos?nome= (filtro)">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/alunos?nome=Carga&amp;size=20</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/alunos?turmaId= (filtro)">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/alunos?turmaId=${__P(turmaId)}&amp;size=20</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/turmas">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/turmas?size=20</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/turmas/{id}">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/turmas/${__P(turmaId)}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/alunos/{id}/boletim">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/alunos/${alunoId}/boletim?anoLetivo=${ano}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/frequencias/alunos/{id}">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+                <collectionProp name="Arguments.arguments" />
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/frequencias/alunos/${alunoId}?anoLetivo=${ano}</stringProp>
+              <stringProp name="HTTPSampler.method">GET</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree />
+          </hashTree>
+        </hashTree>
+        <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="Escrita com eventos (20%)">
+          <intProp name="ThroughputController.style">1</intProp>
+          <boolProp name="ThroughputController.perThread">false</boolProp>
+          <intProp name="ThroughputController.maxThroughput">1</intProp>
+          <FloatProperty>
+            <name>ThroughputController.percentThroughput</name>
+            <value>20.0</value>
+            <savedValue>0.0</savedValue>
+          </FloatProperty>
+          <stringProp name="TestPlan.comments">Cria uma avaliacao e lanca as notas de todas as matriculas da massa</stringProp>
+        </ThroughputController>
+        <hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/avaliacoes">
+            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.value">{"turmaId": ${__P(turmaId)}, "disciplinaId": ${__P(disciplinaId)}, "bimestre": ${__Random(1,4,)}, "tipo": "${__groovy(java.util.concurrent.ThreadLocalRandom.current().nextBoolean() ? 'PROVA' : 'TRABALHO',)}", "descricao": "Carga ${runId}", "peso": 1, "notaMaxima": 10, "data": "${hoje}"}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                </elementProp>
+              </collectionProp>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/avaliacoes</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extrai avaliacaoId">
+              <stringProp name="JSONPostProcessor.referenceNames">avaliacaoId</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.id</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">0</stringProp>
+            </JSONPostProcessor>
+            <hashTree />
+          </hashTree>
+          <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Se a avaliacao foi criada">
+            <stringProp name="IfController.condition">${__groovy(vars.get('avaliacaoId') != '0',)}</stringProp>
+            <boolProp name="IfController.evaluateAll">false</boolProp>
+            <boolProp name="IfController.useExpression">true</boolProp>
+          </IfController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/avaliacoes/{id}/notas">
+              <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">${notasBody}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/avaliacoes/${avaliacaoId}/notas</stringProp>
+              <stringProp name="HTTPSampler.method">POST</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+              <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+              <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+              <stringProp name="TestPlan.comments">Gera um grade.posted e, no notificacao-service, notificacoes para ALUNO e RESPONSAVEL</stringProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Monta as notas das matriculas">
+                <stringProp name="scriptLanguage">groovy</stringProp>
+                <stringProp name="parameters" />
+                <stringProp name="filename" />
+                <stringProp name="cacheKey">true</stringProp>
+                <stringProp name="script">// Uma nota de 0 a 10 para cada matricula da massa
+def r = java.util.concurrent.ThreadLocalRandom.current()
+def notas = props.get('matriculas').split(',').collect { m -&gt;
+    String.format(Locale.ROOT, '{"matriculaAluno": "%s", "valor": %.1f}', m, r.nextInt(0, 101) / 10.0)
+}
+vars.put('notasBody', '[' + notas.join(', ') + ']')</stringProp>
+              </JSR223PreProcessor>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+        </hashTree>
+        <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="Cadastro de aluno (10%)">
+          <intProp name="ThroughputController.style">1</intProp>
+          <boolProp name="ThroughputController.perThread">false</boolProp>
+          <intProp name="ThroughputController.maxThroughput">1</intProp>
+          <FloatProperty>
+            <name>ThroughputController.percentThroughput</name>
+            <value>10.0</value>
+            <savedValue>0.0</savedValue>
+          </FloatProperty>
+          <stringProp name="TestPlan.comments">Cadastro de aluno, sem matricula</stringProp>
+        </ThroughputController>
+        <hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST /api/alunos">
+            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments">
+                <elementProp name="" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.value">{"nome": "Aluno Carga ${runId}", "dataNascimento": "2013-03-20", "email": "aluno.${__UUID()}@carga.distrischool.com", "telefone": "11977770000"}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                </elementProp>
+              </collectionProp>
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/alunos</stringProp>
+            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+            <boolProp name="HTTPSampler.auto_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
+            <stringProp name="TestPlan.comments">Gera um student.created (notificacao para a coordenacao)</stringProp>
+          </HTTPSamplerProxy>
+          <hashTree />
+        </hashTree>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

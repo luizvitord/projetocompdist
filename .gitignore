@@ -33,3 +33,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Testes de carga (resultados do JMeter) ###
+load-tests/resultados/

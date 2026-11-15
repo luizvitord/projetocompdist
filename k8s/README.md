@@ -168,8 +168,10 @@ kubectl get pods -n distrischool -w
 
 Durante a recriação, a outra réplica continua atendendo as requisições.
 
-**Escalabilidade.** Abra o Grafana (port-forward acima), acompanhe o HPA e gere carga (por
-exemplo, com JMeter) para ver o número de réplicas subir:
+**Escalabilidade.** Abra o Grafana (port-forward acima), acompanhe o HPA e gere carga com o
+perfil HPA do JMeter (`.\load-tests\executar.ps1 -Perfil hpa -Alvo minikube`; roteiro completo em
+[load-tests/README.md](../load-tests/README.md#roteiro-de-demonstração-minikube)) para ver o número
+de réplicas subir:
 
 ```sh
 kubectl get hpa -n distrischool -w
