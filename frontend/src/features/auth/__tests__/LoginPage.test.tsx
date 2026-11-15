@@ -15,7 +15,8 @@ afterAll(() => server.close());
 function renderLogin() {
   const router = createMemoryRouter([
     { path: '/login', element: <LoginPage /> },
-    { path: '/dashboard', element: <h1>Painel da coordenação</h1> }
+    { path: '/dashboard', element: <h1>Painel da coordenação</h1> },
+    { path: '/portal', element: <h1>Portal do aluno</h1> }
   ], { initialEntries: ['/login'] });
   render(<RouterProvider router={router} />);
 }
@@ -27,6 +28,19 @@ function fillAndSubmit(email: string, password: string) {
 }
 
 describe('LoginPage', () => {
+  it.each(['ALUNO', 'RESPONSAVEL'])('sends %s to the student portal after login', async (perfil) => {
+    server.use(http.post('/api/auth/login', () => HttpResponse.json({
+      token: 'jwt-token',
+      expiraEm: new Date(Date.now() + 3_600_000).toISOString(),
+      usuario: { id: 7, nome: 'Ana Souza', email: 'ana@example.com', perfil, referenciaId: 12 }
+    })));
+    renderLogin();
+
+    fillAndSubmit('ana@example.com', 'segredo1');
+
+    expect(await screen.findByRole('heading', { name: 'Portal do aluno' })).toBeVisible();
+  });
+
   it('stores the session returned by the API and redirects', async () => {
     server.use(http.post('/api/auth/login', () => HttpResponse.json({
       token: 'jwt-token',

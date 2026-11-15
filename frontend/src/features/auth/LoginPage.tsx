@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { isApiProblem } from '../../services/http';
 import { signIn } from './authApi';
+import { paginaInicial } from './perfis';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -16,8 +17,9 @@ export function LoginPage() {
     setSubmitting(true);
     setMessage('');
     try {
-      await signIn(String(form.get('email') ?? ''), String(form.get('password') ?? ''));
-      const destination = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+      const session = await signIn(String(form.get('email') ?? ''), String(form.get('password') ?? ''));
+      // Uma rota que não é do perfil (ex.: /alunos para um ALUNO) é desviada pelas guardas de perfil
+      const destination = (location.state as { from?: string } | null)?.from ?? paginaInicial(session.usuario);
       navigate(destination, { replace: true });
     } catch (error) {
       // 401: senha errada; 429: limite de tentativas do gateway, com o tempo de espera
