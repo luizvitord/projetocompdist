@@ -21,7 +21,7 @@ Para desenvolvimento do frontend: inicie a infraestrutura e os serviços, depois
 
 Login: `coordenacao@distrischool.com` / `123456` (administrador criado pela migration do `usuarios-service`). O login devolve um JWT que o API Gateway exige em todas as rotas `/api`; perfis e permissões estão em [docs/AUTENTICACAO.md](docs/AUTENTICACAO.md).
 
-`scripts/e2e.ps1` testa os fluxos de ponta a ponta pelo gateway, incluindo as notificações, contra o Compose no ar.
+`scripts/e2e.ps1` testa todas as funcionalidades de ponta a ponta pelo gateway, contra o Compose no ar: autenticação e perfis, cadastros, matrículas, frequência, notas e boletim, notificações (inclusive em tempo real), Kafka, tolerância a falhas e observabilidade. Roda no Windows PowerShell 5.1 e no PowerShell 7, leva uns 5 minutos e gera um relatório JUnit; seções, parâmetros e cobertura em [scripts/README.md](scripts/README.md).
 
 ## Notificações em tempo real
 
@@ -48,5 +48,7 @@ Use `kubectl apply -k k8s/overlays/minikube`. O Ingress expõe o API Gateway par
 | [docs/NOTIFICACOES.md](docs/NOTIFICACOES.md) | Arquitetura das notificações |
 | [docs/MONITORAMENTO.md](docs/MONITORAMENTO.md) | Métricas, dashboard e alertas |
 | [load-tests/README.md](load-tests/README.md) | Testes de carga com JMeter |
+| [scripts/README.md](scripts/README.md) | Teste de ponta a ponta (`e2e.ps1`): seções, parâmetros e cobertura |
+| [docs/E2E-PROBLEMAS.md](docs/E2E-PROBLEMAS.md) | Divergências entre o documentado e o real encontradas pelo e2e |
 | [k8s/README.md](k8s/README.md) | Implantação no Kubernetes (minikube) |
 | [notificacao-service/README.md](notificacao-service/README.md) | Detalhes do `notificacao-service` |
