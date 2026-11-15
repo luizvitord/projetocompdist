@@ -84,9 +84,12 @@ function Invoke-SecaoAlunos {
     $m = New-Matricula $trancado $turma.id
     Set-StatusMatricula $m.id 'TRANCADA' | Out-Null
     $r = Invoke-Api -Metodo GET -Caminho ('/api/alunos?turmaId=' + $turma.id)
-    $lista = @(Get-Conteudo $r)
-    Test-Condicao 'GET /api/alunos?turmaId= traz so os alunos com matricula ATIVA na turma' (($lista.Count -eq 1) -and ($lista[0].id -eq $ativo.id)) `
-        ('itens: ' + (($lista | ForEach-Object { $_.id }) -join ', '))
+    # Lista exata de ids: o aluno com matricula ATIVA, sem o TRANCADO
+    $esperados = @([long]$ativo.id)
+    $obtidos = @(Get-Conteudo $r | ForEach-Object { [long]$_.id } | Sort-Object)
+    Test-Condicao 'GET /api/alunos?turmaId= traz so os alunos com matricula ATIVA na turma' `
+        (($r.Status -eq 200) -and (($obtidos -join ',') -eq ($esperados -join ','))) `
+        ('esperado: ' + (Format-Valor $esperados) + '; obtido: ' + (Format-Valor $obtidos))
 
     # Exclusao: recusada se o aluno tiver qualquer matricula (historico escolar)
     Test-Erro (Invoke-Api -Metodo DELETE -Caminho ('/api/alunos/' + $trancado.id)) 409 'DELETE /api/alunos/{id} de aluno com matricula'

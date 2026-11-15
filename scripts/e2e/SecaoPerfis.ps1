@@ -1,5 +1,6 @@
 # Secao "perfis": CRUD de /api/usuarios (so ADMIN) e a tabela de permissoes do
-# docs/AUTENTICACAO.md, conferida com um usuario de cada perfil.
+# docs/AUTENTICACAO.md, conferida com um usuario de cada perfil. ALUNO e RESPONSAVEL so leem o
+# aluno ligado a conta (referenciaId); uma conta sem referenciaId so ve as proprias notificacoes.
 
 function Invoke-SecaoPerfis {
     Initialize-Admin
@@ -10,6 +11,7 @@ function Invoke-SecaoPerfis {
     foreach ($usuario in @($u.Aluno, $u.Responsavel)) {
         Test-PermissoesLeitura $base $usuario
     }
+    Test-ContaSemReferencia $base
 }
 
 function Test-CrudUsuarios($Base) {
@@ -154,18 +156,61 @@ function Test-PermissoesLeitura($Base, $Usuario) {
     $r = Invoke-Api -Metodo POST -Caminho '/api/notificacoes/lidas' -Token $t
     Test-Status $r 200 ($perfil + ': POST /api/notificacoes/lidas')
 
-    # Falha de autorizacao conhecida: ALUNO e RESPONSAVEL leem qualquer /api/** (dados de outros
-    # alunos inclusive). Fica como [AVISO] enquanto nao for corrigida; 403 conta como correcao.
-    $leituras = @('/api/alunos?size=5', ('/api/alunos/' + $outroAluno.id), ('/api/alunos/' + $outroAluno.id + '/boletim?anoLetivo=' + (Get-AnoLetivo)),
-        '/api/turmas?size=5', '/api/professores?size=5', '/api/tecnicos?size=5', '/api/matriculas?size=5')
-    foreach ($c in $leituras) {
-        $r = Invoke-Api -Metodo GET -Caminho $c -Token $t
-        if ($r.Status -eq 200) {
-            Write-Aviso ($perfil + ': GET ' + $c + ' -> 200 (falha de autorizacao conhecida: deveria se restringir aos proprios dados)') (Get-Resumo $r)
-        } elseif ($r.Status -eq 403) {
-            Test-Condicao ($perfil + ': GET ' + $c + ' -> 403 (restricao aplicada)') $true (Get-Resumo $r)
-        } else {
-            Test-Condicao ($perfil + ': GET ' + $c + ' -> 200 ou 403') $false (Get-Resumo $r)
-        }
+    Test-DadosDoProprioAluno $perfil $t $alunos[0] $outroAluno
+}
+
+# ALUNO e RESPONSAVEL so leem o aluno ligado a conta (referenciaId, aqui $Proprio): os dados dele,
+# o boletim, a frequencia e as matriculas. Todo o resto e 403 em ProblemDetail (docs/AUTENTICACAO.md).
+function Test-DadosDoProprioAluno([string]$Perfil, [string]$Token, $Proprio, $OutroAluno) {
+    $id = $Proprio.Aluno.id
+    $outro = $OutroAluno.id
+    $ano = Get-AnoLetivo
+
+    foreach ($c in @('/api/alunos?size=5', '/api/turmas', '/api/professores', '/api/tecnicos', '/api/matriculas?size=5')) {
+        Test-Erro (Invoke-Api -Metodo GET -Caminho $c -Token $Token) 403 ($Perfil + ': GET ' + $c)
     }
+
+    $r = Invoke-Api -Metodo GET -Caminho ('/api/alunos/' + $id) -Token $Token
+    Test-Status $r 200 ($Perfil + ': GET /api/alunos/{proprio id}')
+    Test-Valor ($Perfil + ': GET /api/alunos/{proprio id} traz o proprio aluno') $id $r.Json.id
+    $r = Invoke-Api -Metodo GET -Caminho ('/api/alunos/' + $id + '/boletim?anoLetivo=' + $ano) -Token $Token
+    Test-Status $r 200 ($Perfil + ': GET /api/alunos/{proprio id}/boletim?anoLetivo=')
+    Test-Valor ($Perfil + ': boletim do proprio aluno') $id $r.Json.alunoId
+    $r = Invoke-Api -Metodo GET -Caminho ('/api/frequencias/alunos/' + $id + '?anoLetivo=' + $ano) -Token $Token
+    Test-Status $r 200 ($Perfil + ': GET /api/frequencias/alunos/{proprio id}?anoLetivo=')
+    Test-Valor ($Perfil + ': frequencia do proprio aluno') $id $r.Json.alunoId
+    $r = Invoke-Api -Metodo GET -Caminho ('/api/matriculas?alunoId=' + $id) -Token $Token
+    Test-Status $r 200 ($Perfil + ': GET /api/matriculas?alunoId={proprio id}')
+    $lista = @(Get-Conteudo $r)
+    $deOutros = @($lista | Where-Object { $_.alunoId -ne $id })
+    Test-Condicao ($Perfil + ': GET /api/matriculas?alunoId={proprio id} so traz as matriculas dele, inclusive a da turma base') `
+        (($deOutros.Count -eq 0) -and (@($lista | Where-Object { $_.id -eq $Proprio.Matricula.id }).Count -eq 1)) `
+        ('esperado: alunoId ' + $id + ' e a matricula ' + $Proprio.Matricula.id + '; obtido: ' + (Format-Valor @($lista | ForEach-Object { [string]$_.id + '/aluno ' + $_.alunoId })))
+
+    # Os mesmos dados de outro aluno, e variacoes que nao podem passar por "o proprio id"
+    $negadas = @(
+        @{ C = '/api/alunos/' + $outro; D = '/api/alunos/{outro id}' },
+        @{ C = '/api/alunos/' + $outro + '/boletim?anoLetivo=' + $ano; D = '/api/alunos/{outro id}/boletim?anoLetivo=' },
+        @{ C = '/api/frequencias/alunos/' + $outro + '?anoLetivo=' + $ano; D = '/api/frequencias/alunos/{outro id}?anoLetivo=' },
+        @{ C = '/api/matriculas?alunoId=' + $outro; D = '/api/matriculas?alunoId={outro id}' },
+        @{ C = '/api/matriculas?alunoId=' + $id + '&alunoId=' + $outro; D = '/api/matriculas?alunoId={proprio id}&alunoId={outro id}' },
+        @{ C = '/api/alunos/' + $id + 'abc'; D = '/api/alunos/{proprio id}abc' }
+    )
+    foreach ($n in $negadas) {
+        Test-Erro (Invoke-Api -Metodo GET -Caminho $n.C -Token $Token) 403 ($Perfil + ': GET ' + $n.D)
+    }
+}
+
+# Conta ALUNO sem referenciaId: nao ve dado escolar nenhum, so as proprias notificacoes
+function Test-ContaSemReferencia($Base) {
+    $semVinculo = Connect-Usuario (New-Usuario 'ALUNO' $null)
+    $t = $semVinculo.Token
+    $id = $Base.Alunos[0].Aluno.id
+    Test-Erro (Invoke-Api -Metodo GET -Caminho ('/api/alunos/' + $id + '/boletim?anoLetivo=' + (Get-AnoLetivo)) -Token $t) 403 `
+        'ALUNO sem referenciaId: GET /api/alunos/{id}/boletim?anoLetivo='
+    Test-Erro (Invoke-Api -Metodo GET -Caminho ('/api/alunos/' + $id) -Token $t) 403 'ALUNO sem referenciaId: GET /api/alunos/{id}'
+    Test-Status (Invoke-Api -Metodo GET -Caminho '/api/notificacoes' -Token $t) 200 'ALUNO sem referenciaId: GET /api/notificacoes (as proprias)'
+    $r = Invoke-Api -Metodo GET -Caminho '/api/notificacoes/nao-lidas/contagem' -Token $t
+    Test-Status $r 200 'ALUNO sem referenciaId: GET /api/notificacoes/nao-lidas/contagem'
+    Test-Valor 'ALUNO sem referenciaId: nenhuma notificacao nao lida' 0 $r.Json.total
 }
