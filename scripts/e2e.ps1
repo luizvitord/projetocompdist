@@ -124,6 +124,9 @@ $Catalogo = @(
     @{ Id = 'boletim';                    Nome = 'Boletim';                                           Funcao = 'Invoke-SecaoBoletim';                   ParaContainers = $false }
     @{ Id = 'fluxo';                      Nome = 'Fluxo funcional';                                   Funcao = 'Invoke-SecaoFluxo';                     ParaContainers = $false }
     @{ Id = 'notificacoes';               Nome = 'Notificacoes';                                      Funcao = 'Invoke-SecaoNotificacoes';              ParaContainers = $false }
+    @{ Id = 'dlt';                        Nome = 'Dead Letter Topic';                                 Funcao = 'Invoke-SecaoDlt';                       ParaContainers = $false }
+    @{ Id = 'resiliencia-administrativa'; Nome = 'gestao-administrativa-service fora do ar';          Funcao = 'Invoke-SecaoResilienciaAdministrativa'; ParaContainers = $true }
+    @{ Id = 'resiliencia-notificacao';    Nome = 'notificacao-service fora do ar';                    Funcao = 'Invoke-SecaoResilienciaNotificacao';    ParaContainers = $true }
     @{ Id = 'outbox';                     Nome = 'Outbox com o Kafka fora do ar';                     Funcao = 'Invoke-SecaoOutbox';                    ParaContainers = $true }
     @{ Id = 'circuitbreaker';             Nome = 'Circuit breaker com o gestao-escolar-service fora'; Funcao = 'Invoke-SecaoCircuitBreaker';            ParaContainers = $true }
     @{ Id = 'ratelimit';                  Nome = 'Rate limit do login';                               Funcao = 'Invoke-SecaoRateLimit';                 ParaContainers = $false }
