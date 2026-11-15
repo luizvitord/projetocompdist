@@ -14,7 +14,8 @@ function New-ConexaoStomp([string]$Url) {
     $ws = New-Object System.Net.WebSockets.ClientWebSocket
     $cts = New-Object System.Threading.CancellationTokenSource
     $cts.CancelAfter(10000)
-    $ws.ConnectAsync([Uri]$Url, $cts.Token).GetAwaiter().GetResult()
+    # No 5.1, GetResult() de uma Task sem valor devolve um VoidTaskResult, que viraria saida da funcao
+    $ws.ConnectAsync([Uri]$Url, $cts.Token).GetAwaiter().GetResult() | Out-Null
     return @{
         Ws       = $ws
         Buffer   = New-Object byte[] 65536
