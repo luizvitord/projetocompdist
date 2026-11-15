@@ -36,3 +36,6 @@ build/
 
 ### Testes de carga (resultados do JMeter) ###
 load-tests/resultados/
+
+### Relatorio JUnit do e2e (scripts/e2e.ps1) ###
+scripts/e2e-resultado.xml
