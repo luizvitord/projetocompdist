@@ -1,7 +1,9 @@
 package com.distrischool.gestao_escolar.avaliacao;
 
+import com.distrischool.gestao_escolar.common.BuscaTexto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -44,8 +46,10 @@ public class AvaliacaoController {
             @RequestParam(required = false) Long turmaId,
             @RequestParam(required = false) Long disciplinaId,
             @RequestParam(required = false) Integer bimestre,
+            @RequestParam(required = false)
+            @Size(max = BuscaTexto.TAMANHO_MAXIMO, message = BuscaTexto.MENSAGEM_TAMANHO) String busca,
             @PageableDefault(size = 20, sort = "data", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(avaliacaoService.buscar(turmaId, disciplinaId, bimestre, pageable));
+        return new PagedModel<>(avaliacaoService.buscar(turmaId, disciplinaId, bimestre, busca, pageable));
     }
 
     @GetMapping("/{id}")

@@ -1,5 +1,6 @@
 package com.distrischool.gestao_administrativa.turma;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import com.distrischool.gestao_administrativa.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_administrativa.common.RegraNegocioException;
 import com.distrischool.gestao_administrativa.disciplina.Disciplina;
@@ -60,8 +61,9 @@ public class TurmaService {
         if (professorId != null) {
             spec = spec.and(TurmaSpecifications.possuiProfessor(professorId));
         }
-        if (busca != null && !busca.isBlank()) {
-            spec = spec.and(TurmaSpecifications.codigoOuNomeContem(busca.strip()));
+        String termo = BuscaTexto.normalizar(busca);
+        if (termo != null) {
+            spec = spec.and(TurmaSpecifications.busca(termo));
         }
         return turmaRepository.findAll(spec, pageable).map(TurmaResponse::from);
     }

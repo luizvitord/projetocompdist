@@ -4,7 +4,7 @@ import { useFeedback } from '../../components/feedback/FeedbackProvider';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { api, isApiProblem } from '../../services/http';
-import { toPage, type SpringPagedModel } from '../../services/pagination';
+import { buscarTodasAsPaginas } from '../../services/paginas';
 import type { Aluno } from '../../types/aluno';
 import type { StatusPresenca } from '../../types/escolar';
 import type { Turma } from '../../types/turma';
@@ -17,8 +17,9 @@ export function FrequenciaPage() {
 
   useEffect(() => {
     if (!turmaId) { setTurma(null); setAlunos([]); setDisciplinaId(''); setRegistros({}); return; }
-    void Promise.all([api.get<Turma>(`/turmas/${turmaId}`), api.get<SpringPagedModel<Aluno>>('/alunos', { query: { turmaId, page: 0, size: 100 } })]).then(([turmaSelecionada, paginaAlunos]) => {
-      const alunosDaTurma = toPage(paginaAlunos).content;
+    // Todos os alunos da turma (todas as páginas): a chamada precisa conter exatamente as matrículas
+    // ATIVA, e a capacidade da turma não tem limite máximo na API
+    void Promise.all([api.get<Turma>(`/turmas/${turmaId}`), buscarTodasAsPaginas<Aluno>('/alunos', { turmaId, sort: ['nome,asc', 'id,asc'] })]).then(([turmaSelecionada, alunosDaTurma]) => {
       setTurma(turmaSelecionada); setAlunos(alunosDaTurma); setDisciplinaId('');
       setRegistros(Object.fromEntries(alunosDaTurma.map((aluno) => [aluno.matricula, { status: 'PRESENTE', observacao: '' }])));
     }).catch(() => showError('Não foi possível carregar as disciplinas e os alunos da turma.'));

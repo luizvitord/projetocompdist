@@ -1,5 +1,6 @@
 package com.distrischool.gestao_administrativa.disciplina;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import com.distrischool.gestao_administrativa.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_administrativa.common.RegraNegocioException;
 import lombok.RequiredArgsConstructor;
@@ -30,10 +31,14 @@ public class DisciplinaService {
     }
 
     @Transactional(readOnly = true)
-    public Page<DisciplinaResponse> buscar(String nome, boolean ativa, Pageable pageable) {
+    public Page<DisciplinaResponse> buscar(String nome, boolean ativa, String busca, Pageable pageable) {
         Specification<Disciplina> spec = DisciplinaSpecifications.ativaIgual(ativa);
         if (StringUtils.hasText(nome)) {
             spec = spec.and(DisciplinaSpecifications.nomeContem(nome.trim()));
+        }
+        String termo = BuscaTexto.normalizar(busca);
+        if (termo != null) {
+            spec = spec.and(DisciplinaSpecifications.busca(termo));
         }
         return disciplinaRepository.findAll(spec, pageable).map(DisciplinaResponse::from);
     }

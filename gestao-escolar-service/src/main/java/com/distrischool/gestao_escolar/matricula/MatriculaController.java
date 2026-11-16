@@ -1,6 +1,8 @@
 package com.distrischool.gestao_escolar.matricula;
 
+import com.distrischool.gestao_escolar.common.BuscaTexto;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -39,8 +41,10 @@ public class MatriculaController {
             @RequestParam(required = false) Long turmaId,
             @RequestParam(required = false) Integer anoLetivo,
             @RequestParam(required = false) StatusMatricula status,
+            @RequestParam(required = false)
+            @Size(max = BuscaTexto.TAMANHO_MAXIMO, message = BuscaTexto.MENSAGEM_TAMANHO) String busca,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(matriculaService.buscar(alunoId, turmaId, anoLetivo, status, pageable));
+        return new PagedModel<>(matriculaService.buscar(alunoId, turmaId, anoLetivo, status, busca, pageable));
     }
 
     @GetMapping("/{id}")

@@ -121,10 +121,27 @@ Atualize os testes existentes de turma e crie testes para disciplinas.
 ### Gestão de Turmas e Disciplinas
 - Implementado: CRUD de turmas, atribuição de professores, capacidade; disciplinas e oferta
   de disciplinas por turma (nesta tarefa)
-- `GET /api/turmas` filtra por `anoLetivo`, `turno`, `professorId` e `busca` (parte do código ou do
-  nome, sem diferenciar maiúsculas; usado pelos campos de busca de turma do frontend)
+- `GET /api/turmas` filtra por `anoLetivo`, `turno`, `professorId` e `busca` (veja abaixo)
 - Pendente: horários de aula, calendário escolar, feriados, detecção de conflitos de horário,
   importação via Excel
+
+
+### Parâmetro `busca` das listagens
+
+As listagens aceitam `busca` (opcional, até 100 caracteres; acima disso, 400 com `ProblemDetail`):
+procura o texto, sem diferenciar maiúsculas nem acentos, em qualquer um dos campos da tabela e se
+combina (E) com os outros filtros. Vazio ou só com espaços = sem filtro. Os acentos são removidos
+pela função `unaccent` do PostgreSQL (extensão criada por migration), nos dois lados da comparação;
+o texto vai como parâmetro da consulta e `%`/`_` digitados valem como texto. Implementação em
+`common/BuscaTexto` e nas `*Specifications`; testes de Specification com PostgreSQL real
+(Testcontainers, pulados sem Docker).
+
+| Endpoint | Campos pesquisados |
+|---|---|
+| `GET /api/professores` | nome, email, qualificação |
+| `GET /api/tecnicos` | nome, email, setor (nunca o CPF, por causa da LGPD) |
+| `GET /api/disciplinas` | código, nome |
+| `GET /api/turmas` | código, nome |
 
 ## Fora do escopo deste serviço
 

@@ -164,7 +164,7 @@ describe('registry flows', () => {
     }));
     render(<FeedbackProvider><MemoryRouter><PessoasPage /></MemoryRouter></FeedbackProvider>);
     await screen.findByText('Nenhum professor encontrado');
-    fireEvent.click(screen.getByRole('button', { name: 'Técnicos' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Técnicos' }));
     await screen.findByText('Nenhum técnico encontrado');
     fireEvent.click(screen.getByRole('button', { name: 'Novo técnico' }));
 

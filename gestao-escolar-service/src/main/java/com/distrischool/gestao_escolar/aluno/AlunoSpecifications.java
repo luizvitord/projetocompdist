@@ -1,5 +1,6 @@
 package com.distrischool.gestao_escolar.aluno;
 
+import com.distrischool.gestao_escolar.common.BuscaTexto;
 import com.distrischool.gestao_escolar.matricula.Matricula;
 import com.distrischool.gestao_escolar.matricula.StatusMatricula;
 import jakarta.persistence.criteria.Root;
@@ -14,6 +15,12 @@ final class AlunoSpecifications {
     static Specification<Aluno> nomeContem(String nome) {
         return (root, query, cb) ->
                 cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%");
+    }
+
+    /** Nome, número de matrícula ou email contêm o texto (sem diferenciar maiúsculas nem acentos). */
+    static Specification<Aluno> busca(String busca) {
+        return (root, query, cb) -> BuscaTexto.algumContem(cb, busca,
+                root.get("nome"), root.get("matricula"), root.get("email"));
     }
 
     static Specification<Aluno> matriculaIgual(String matricula) {

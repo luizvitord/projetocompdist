@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -98,7 +99,7 @@ class MatriculaControllerTest {
 
     @Test
     void listaPaginadaComFiltros() throws Exception {
-        when(matriculaService.buscar(eq(1L), eq(12L), eq(2026), eq(StatusMatricula.ATIVA), any(Pageable.class)))
+        when(matriculaService.buscar(eq(1L), eq(12L), eq(2026), eq(StatusMatricula.ATIVA), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(resposta(4L, 12L, StatusMatricula.ATIVA, null)), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/matriculas")

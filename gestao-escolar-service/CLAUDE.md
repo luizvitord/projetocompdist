@@ -58,7 +58,7 @@ ao novo pacote. Recupere também o `AlunoControllerTest` e o `StudentCreatedEven
 Mantenha o comportamento existente:
 - Campos: `nome`, `dataNascimento` (passada), `endereco`, `telefone`, `email`
 - Número de matrícula gerado pelo servidor a partir de uma sequence, no formato ano + 6 dígitos
-- `POST /api/alunos`, `GET /api/alunos` (paginado; filtros `nome`, `matricula`, `turmaId`),
+- `POST /api/alunos`, `GET /api/alunos` (paginado; filtros `nome`, `matricula`, `turmaId`, `busca`),
   `GET/PUT/DELETE /api/alunos/{id}`
 - O filtro `turmaId` agora usa as matrículas com status `ATIVA` (Etapa 4)
 - Evento `student.created` (mesmo payload de antes)
@@ -123,7 +123,7 @@ Vínculo de um aluno com uma turma em um ano letivo.
 
 **Endpoints:**
 - `POST /api/matriculas` — `{ "alunoId": 1, "turmaId": 12 }`
-- `GET /api/matriculas` — paginado; filtros `alunoId`, `turmaId`, `anoLetivo`, `status`
+- `GET /api/matriculas` — paginado; filtros `alunoId`, `turmaId`, `anoLetivo`, `status`, `busca`
 - `GET /api/matriculas/{id}`
 - `PATCH /api/matriculas/{id}/status` — `{ "status": "TRANCADA", "motivo": "..." }`
 - `POST /api/matriculas/{id}/transferencia` — `{ "turmaDestinoId": 15, "motivo": "..." }`
@@ -197,7 +197,7 @@ Vínculo de um aluno com uma turma em um ano letivo.
   senão `APROVADO` se todas as disciplinas atingirem a média mínima; senão `REPROVADO_POR_NOTA`
 
 **Endpoints:**
-- `POST /api/avaliacoes`, `GET /api/avaliacoes` (paginado; filtros `turmaId`, `disciplinaId`,
+- `POST /api/avaliacoes`, `GET /api/avaliacoes` (paginado; filtros `turmaId`, `disciplinaId`, `busca`,
   `bimestre`), `GET/PUT/DELETE /api/avaliacoes/{id}`
 - `POST /api/avaliacoes/{id}/notas` — lançamento em lote: `[{ "matriculaId": 4, "valor": 8.5 }]`;
   409 se alguma matrícula já tiver nota (correção é pelo endpoint abaixo)
@@ -295,6 +295,23 @@ Todos após o commit da transação, em JSON sem cabeçalhos de tipo Java, com
 
 Os eventos usam `alunoId` (e não `matriculaId`) nas listas porque os consumidores conhecem
 alunos, não matrículas.
+
+
+### Parâmetro `busca` das listagens
+
+As listagens aceitam `busca` (opcional, até 100 caracteres; acima disso, 400 com `ProblemDetail`):
+procura o texto, sem diferenciar maiúsculas nem acentos, em qualquer um dos campos da tabela e se
+combina (E) com os outros filtros. Vazio ou só com espaços = sem filtro. Os acentos são removidos
+pela função `unaccent` do PostgreSQL (extensão criada por migration), nos dois lados da comparação;
+o texto vai como parâmetro da consulta e `%`/`_` digitados valem como texto. Implementação em
+`common/BuscaTexto` e nas `*Specifications`; testes de Specification com PostgreSQL real
+(Testcontainers, pulados sem Docker).
+
+| Endpoint | Campos pesquisados |
+|---|---|
+| `GET /api/alunos` | nome, número de matrícula, email |
+| `GET /api/matriculas` | nome e número de matrícula do aluno; código e nome da turma (`turma_replica`) |
+| `GET /api/avaliacoes` | descrição; código e nome da turma; nome da disciplina (`turma_disciplina_replica`) |
 
 ## Padrões de implementação
 

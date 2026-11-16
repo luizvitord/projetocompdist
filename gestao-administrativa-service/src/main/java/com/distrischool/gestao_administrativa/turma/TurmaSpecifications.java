@@ -1,8 +1,7 @@
 package com.distrischool.gestao_administrativa.turma;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import org.springframework.data.jpa.domain.Specification;
-
-import java.util.Locale;
 
 final class TurmaSpecifications {
 
@@ -21,15 +20,8 @@ final class TurmaSpecifications {
         return (root, query, cb) -> cb.equal(root.join("professores").get("id"), professorId);
     }
 
-    /** Parte do código ou do nome, sem diferenciar maiúsculas; % e _ digitados são literais. */
-    static Specification<Turma> codigoOuNomeContem(String busca) {
-        String padrao = "%" + escaparLike(busca.toLowerCase(Locale.ROOT)) + "%";
-        return (root, query, cb) -> cb.or(
-                cb.like(cb.lower(root.get("codigo")), padrao, '\\'),
-                cb.like(cb.lower(root.get("nome")), padrao, '\\'));
-    }
-
-    private static String escaparLike(String texto) {
-        return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    /** Código ou nome contêm o texto (sem diferenciar maiúsculas nem acentos). */
+    static Specification<Turma> busca(String busca) {
+        return (root, query, cb) -> BuscaTexto.algumContem(cb, busca, root.get("codigo"), root.get("nome"));
     }
 }

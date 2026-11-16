@@ -1,5 +1,6 @@
 package com.distrischool.gestao_escolar.avaliacao;
 
+import com.distrischool.gestao_escolar.common.BuscaTexto;
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.turma.TurmaReplicaService;
@@ -48,7 +49,8 @@ public class AvaliacaoService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AvaliacaoResponse> buscar(Long turmaId, Long disciplinaId, Integer bimestre, Pageable pageable) {
+    public Page<AvaliacaoResponse> buscar(Long turmaId, Long disciplinaId, Integer bimestre, String busca,
+                                          Pageable pageable) {
         Specification<Avaliacao> spec = Specification.unrestricted();
         if (turmaId != null) {
             spec = spec.and(AvaliacaoSpecifications.turmaIgual(turmaId));
@@ -58,6 +60,10 @@ public class AvaliacaoService {
         }
         if (bimestre != null) {
             spec = spec.and(AvaliacaoSpecifications.bimestreIgual(bimestre));
+        }
+        String termo = BuscaTexto.normalizar(busca);
+        if (termo != null) {
+            spec = spec.and(AvaliacaoSpecifications.busca(termo));
         }
         return avaliacaoRepository.findAll(spec, pageable).map(AvaliacaoResponse::from);
     }

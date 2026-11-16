@@ -5,6 +5,9 @@ import { Dialog } from '../../components/ui/Dialog';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Pagination } from '../../components/ui/Pagination';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { SemResultados } from '../../components/ui/SemResultados';
+import { useBuscaNaUrl } from '../../components/ui/useBuscaNaUrl';
 import { useFeedback } from '../../components/feedback/FeedbackProvider';
 import { api, isApiProblem } from '../../services/http';
 import { toPage, type Page, type SpringPagedModel } from '../../services/pagination';
@@ -36,10 +39,13 @@ function PhoneInput({ defaultValue, ...props }: Omit<InputHTMLAttributes<HTMLInp
   return <input {...props} type="tel" inputMode="tel" autoComplete="tel" value={value} onChange={(event) => setValue(formatTelefone(event.target.value))} />;
 }
 
-export function RegistryPage<T extends Resource>({ title, singular, path, columns, fields, filters = EMPTY_FILTERS, toPayload, deleteEnabled = true }: {
+export function RegistryPage<T extends Resource>({ title, singular, path, columns, fields, filters = EMPTY_FILTERS, toPayload, deleteEnabled = true, searchPlaceholder = 'Buscar' }: {
   title: string; singular: string; path: string; columns: DataTableColumn<T>[]; fields: Field[]; filters?: Filters; toPayload?: (form: FormData) => Record<string, unknown>; deleteEnabled?: boolean;
+  /** Diz o que a busca pesquisa nesta tela (ex.: "Buscar por nome, matrícula ou email"). */
+  searchPlaceholder?: string;
 }) {
-  const [pageNumber, setPageNumber] = useState(0);
+  // Busca e página na URL (?busca=...&pagina=...); a busca é feita no servidor, junto com a paginação
+  const { busca, pagina: pageNumber, setBusca, setPagina: setPageNumber } = useBuscaNaUrl();
   const [page, setPage] = useState<Page<T> | null>(null);
   const [error, setError] = useState('');
   const [formError, setFormError] = useState<Record<string, string>>({});
@@ -54,11 +60,14 @@ export function RegistryPage<T extends Resource>({ title, singular, path, column
   const stableFilters = useMemo(() => JSON.parse(filtersKey) as Filters, [filtersKey]);
 
   useEffect(() => {
+    // Cancela a consulta anterior: uma resposta antiga não pode sobrescrever a da busca atual
+    const controller = new AbortController();
     setError('');
-    api.get<SpringPagedModel<T>>(path, { query: { ...stableFilters, page: pageNumber, size: 20 } })
+    api.get<SpringPagedModel<T>>(path, { signal: controller.signal, query: { ...stableFilters, busca, page: pageNumber, size: 20 } })
       .then((response) => { setPage(toPage(response)); setError(''); })
-      .catch(() => setError(`Não foi possível carregar ${title.toLowerCase()}.`));
-  }, [pageNumber, path, refresh, stableFilters, title]);
+      .catch(() => { if (!controller.signal.aborted) setError(`Não foi possível carregar ${title.toLowerCase()}.`); });
+    return () => controller.abort();
+  }, [busca, pageNumber, path, refresh, stableFilters, title]);
 
   function validateForm(form: FormData) {
     const validationErrors: Record<string, string> = {};
@@ -164,7 +173,8 @@ export function RegistryPage<T extends Resource>({ title, singular, path, column
       <Dialog title={`Novo ${singular}`} open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (open) setFormError({}); }} trigger={<Button>Novo {singular}</Button>}>{form(create, 'create')}</Dialog>
       <Dialog title={`Editar ${singular}`} open={Boolean(editing)} onOpenChange={(open) => { if (!open) { setEditing(null); setFormError({}); } }} trigger={<span />}>{editing ? form(update, 'update', editing) : null}</Dialog>
     </header>
+    <SearchInput value={busca} onSearch={setBusca} placeholder={searchPlaceholder} label={`Buscar ${title.toLowerCase()}`} />
     {error ? <p role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800">{error}</p> : null}
-    {error ? <Button type="button" variant="secondary" onClick={() => setRefresh((value) => value + 1)}>Tentar novamente</Button> : !page ? <p role="status" className="rounded-lg bg-white p-4 text-slate-600">Carregando {title.toLowerCase()}...</p> : page.content.length > 0 ? <><DataTable columns={tableColumns} items={page.content} keyFor={(item) => item.id} /><Pagination page={page.number} totalPages={page.totalPages} onPageChange={setPageNumber} /></> : <EmptyState title={`Nenhum ${singular.toLowerCase()} encontrado`} description="Use o cadastro para incluir o primeiro registro." />}
+    {error ? <Button type="button" variant="secondary" onClick={() => setRefresh((value) => value + 1)}>Tentar novamente</Button> : !page ? <p role="status" className="rounded-lg bg-white p-4 text-slate-600">Carregando {title.toLowerCase()}...</p> : page.content.length > 0 ? <><DataTable columns={tableColumns} items={page.content} keyFor={(item) => item.id} /><Pagination page={page.number} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={setPageNumber} /></> : busca ? <SemResultados busca={busca} onLimpar={() => setBusca('')} /> : page.totalElements > 0 ? <EmptyState title="Esta página não existe" description={`Há ${page.totalElements} registro(s) nas páginas anteriores.`} actionLabel="Ir para a primeira página" onAction={() => setPageNumber(0)} /> : <EmptyState title={`Nenhum ${singular.toLowerCase()} encontrado`} description="Use o cadastro para incluir o primeiro registro." />}
   </section>;
 }

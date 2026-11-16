@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { AvaliacoesPage } from '../AvaliacoesPage';
 import { FeedbackProvider } from '../../../components/feedback/FeedbackProvider';
@@ -11,7 +12,7 @@ describe('grade entry', () => { it('loads enrolled students and posts grades usi
   http.get('/api/turmas/1', () => HttpResponse.json({ id: 1, codigo: '9A', nome: 'Turma A', anoLetivo: 2026, turno: 'MANHA', capacidade: 30, professores: [], disciplinas: [{ disciplinaId: 2, codigo: 'MAT', nome: 'Matemática', professorId: null, professorNome: null }] })),
   http.get('/api/alunos', () => HttpResponse.json({ content: [{ id: 99, matricula: '202600001', nome: 'Gabriel' }], page: { size: 100, number: 0, totalElements: 1, totalPages: 1 } })),
   http.post('/api/avaliacoes/3/notas', async ({ request }) => { payload = await request.json(); return HttpResponse.json({ id: 1 }, { status: 201 }); })
-); render(<FeedbackProvider><AvaliacoesPage /></FeedbackProvider>); expect(await screen.findByText('9A — Turma A')).toBeVisible(); expect(screen.getByText('MAT — Matemática')).toBeVisible(); fireEvent.click(await screen.findByRole('button', { name: 'Lançar notas' })); await screen.findByText('Gabriel — 202600001'); fireEvent.change(screen.getByLabelText('Nota de Gabriel'), { target: { value: '8.5' } }); fireEvent.click(screen.getByRole('button', { name: 'Salvar notas' })); await waitFor(() => expect(payload).toEqual([{ matriculaAluno: '202600001', valor: 8.5 }])); }); });
+); render(<FeedbackProvider><MemoryRouter><AvaliacoesPage /></MemoryRouter></FeedbackProvider>); expect(await screen.findByText('9A — Turma A')).toBeVisible(); expect(screen.getByText('MAT — Matemática')).toBeVisible(); fireEvent.click(await screen.findByRole('button', { name: 'Lançar notas' })); await screen.findByText('Gabriel — 202600001'); fireEvent.change(screen.getByLabelText('Nota de Gabriel'), { target: { value: '8.5' } }); fireEvent.click(screen.getByRole('button', { name: 'Salvar notas' })); await waitFor(() => expect(payload).toEqual([{ matriculaAluno: '202600001', valor: 8.5 }])); }); });
 
 describe('evaluation list loading failures', () => {
   it('offers a retry instead of loading evaluations forever after an API failure', async () => {
@@ -19,7 +20,7 @@ describe('evaluation list loading failures', () => {
       http.get('/api/avaliacoes', () => HttpResponse.json({ detail: 'Indisponível' }, { status: 500 })),
       http.get('/api/turmas', () => HttpResponse.json({ content: [], page: { size: 100, number: 0, totalElements: 0, totalPages: 0 } }))
     );
-    render(<FeedbackProvider><AvaliacoesPage /></FeedbackProvider>);
+    render(<FeedbackProvider><MemoryRouter><AvaliacoesPage /></MemoryRouter></FeedbackProvider>);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar as avaliações.');
     expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();

@@ -19,6 +19,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -95,7 +96,7 @@ class AvaliacaoControllerTest {
 
     @Test
     void listaComFiltros() throws Exception {
-        when(avaliacaoService.buscar(eq(12L), eq(3L), eq(1), any(Pageable.class)))
+        when(avaliacaoService.buscar(eq(12L), eq(3L), eq(1), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(resposta()), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/avaliacoes").param("turmaId", "12").param("disciplinaId", "3").param("bimestre", "1"))

@@ -3,7 +3,7 @@ import { RegistryPage } from '../administrativo/RegistryPage';
 import type { Aluno } from '../../types/aluno';
 
 export function AlunosPage() {
-  return <RegistryPage<Aluno> title="Alunos" singular="aluno" path="/alunos" fields={[
+  return <RegistryPage<Aluno> title="Alunos" singular="aluno" path="/alunos" searchPlaceholder="Buscar por nome, matrícula ou email" fields={[
     { name: 'nome', label: 'Nome', required: true }, { name: 'dataNascimento', label: 'Nascimento', type: 'date', required: true },
     { name: 'endereco', label: 'Endereço', required: true }, { name: 'telefone', label: 'Telefone', type: 'phone', required: true }, { name: 'email', label: 'E-mail', type: 'email', required: true }
   ]} columns={[

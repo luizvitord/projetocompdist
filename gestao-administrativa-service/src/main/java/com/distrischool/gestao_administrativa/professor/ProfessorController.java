@@ -1,6 +1,8 @@
 package com.distrischool.gestao_administrativa.professor;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -35,8 +37,10 @@ public class ProfessorController {
     @GetMapping
     public PagedModel<ProfessorResponse> buscar(
             @RequestParam(required = false) String nome,
+            @RequestParam(required = false)
+            @Size(max = BuscaTexto.TAMANHO_MAXIMO, message = BuscaTexto.MENSAGEM_TAMANHO) String busca,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(professorService.buscar(nome, pageable));
+        return new PagedModel<>(professorService.buscar(nome, busca, pageable));
     }
 
     @GetMapping("/{id}")

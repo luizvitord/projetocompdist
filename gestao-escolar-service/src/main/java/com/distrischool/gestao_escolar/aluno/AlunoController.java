@@ -1,6 +1,8 @@
 package com.distrischool.gestao_escolar.aluno;
 
+import com.distrischool.gestao_escolar.common.BuscaTexto;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -40,8 +42,10 @@ public class AlunoController {
             @RequestParam(required = false) String nome,
             @RequestParam(required = false) String matricula,
             @RequestParam(required = false) Long turmaId,
+            @RequestParam(required = false)
+            @Size(max = BuscaTexto.TAMANHO_MAXIMO, message = BuscaTexto.MENSAGEM_TAMANHO) String busca,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(alunoService.buscar(nome, matricula, turmaId, pageable));
+        return new PagedModel<>(alunoService.buscar(nome, matricula, turmaId, busca, pageable));
     }
 
     @GetMapping("/{id}")
