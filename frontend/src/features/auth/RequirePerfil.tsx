@@ -12,6 +12,13 @@ export function RequireCoordenacao() {
   return usaPortal(usuario.perfil) ? <Navigate to={paginaInicial(usuario)} replace /> : <Outlet />;
 }
 
+/** Administração de contas é exclusiva da coordenação (perfil ADMIN). */
+export function RequireAdmin() {
+  const usuario = getSession()?.usuario;
+  if (!usuario) return <Navigate to="/login" replace />;
+  return usuario.perfil === 'ADMIN' ? <Outlet /> : <Navigate to={paginaInicial(usuario)} replace />;
+}
+
 export function RequirePortal() {
   const usuario = getSession()?.usuario;
   if (!usuario) return <Navigate to="/login" replace />;

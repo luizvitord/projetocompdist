@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RequireAuth } from '../RequireAuth';
-import { RequireCoordenacao, RequirePortal } from '../RequirePerfil';
+import { RequireAdmin, RequireCoordenacao, RequirePortal } from '../RequirePerfil';
 import { clearSession, saveSession } from '../../../services/session';
 import type { Perfil } from '../../../types/auth';
 
@@ -21,7 +21,8 @@ function renderAt(path: string) {
       { element: <RequireCoordenacao />, children: [
         { path: '/dashboard', element: <h1>Visão geral</h1> },
         { path: '/alunos', element: <h1>Cadastro de alunos</h1> },
-        { path: '/turmas/:id', element: <h1>Detalhe da turma</h1> }
+        { path: '/turmas/:id', element: <h1>Detalhe da turma</h1> },
+        { element: <RequireAdmin />, children: [{ path: '/usuarios', element: <h1>Usuários</h1> }] }
       ] }
     ] }
   ], { initialEntries: [path] });
@@ -58,6 +59,14 @@ describe('route guards by profile', () => {
     view.unmount();
 
     const { router } = renderAt('/portal');
+    expect(await screen.findByRole('heading', { name: 'Visão geral' })).toBeVisible();
+    expect(router.state.location.pathname).toBe('/dashboard');
+  });
+
+  it('sends PROFESSOR away from user management', async () => {
+    login('PROFESSOR', 3);
+    const { router } = renderAt('/usuarios');
+
     expect(await screen.findByRole('heading', { name: 'Visão geral' })).toBeVisible();
     expect(router.state.location.pathname).toBe('/dashboard');
   });
