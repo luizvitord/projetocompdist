@@ -27,11 +27,7 @@ Login: `coordenacao@distrischool.com` / `123456` (administrador criado pela migr
 
 Usuários `ALUNO` e `RESPONSAVEL` entram pelo mesmo login e vão para `/portal`: dados do aluno ligado à conta, seletor de ano letivo (pelas matrículas dele), boletim, frequência e a central de notificações. Eles não veem a navegação da coordenação, e as URLs dela redirecionam para o portal. O gateway só deixa esses perfis lerem o aluno cujo id é o `referenciaId` do token; todo o resto responde `403` ([regras](docs/AUTENTICACAO.md#aluno-e-responsavel-só-o-aluno-ligado-à-conta)).
 
-Para entrar no portal, crie pela API (como coordenação) um usuário com `referenciaId` = id de um aluno e faça login com ele:
-
-```bash
-curl -X POST http://localhost:8080/api/usuarios -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'   -d '{"nome": "Responsável da Ana", "email": "resp.ana@distrischool.com", "senha": "segredo1", "perfil": "RESPONSAVEL", "referenciaId": 12}'
-```
+Para entrar no portal, a coordenação cria a conta em **Usuários** e escolhe o perfil `ALUNO` ou `RESPONSAVEL`. Informe no campo de vínculo o id do aluno correspondente (`referenciaId`) e faça login com a nova conta.
 
 Uma conta sem `referenciaId` vê só um aviso para procurar a coordenação.
 

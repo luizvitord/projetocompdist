@@ -3,7 +3,7 @@ import { AppShell } from './AppShell';
 import { PortalShell } from './PortalShell';
 import { NotFoundPage } from './NotFoundPage';
 import { RequireAuth } from '../features/auth/RequireAuth';
-import { RequireCoordenacao, RequirePortal } from '../features/auth/RequirePerfil';
+import { RequireAdmin, RequireCoordenacao, RequirePortal } from '../features/auth/RequirePerfil';
 import { LoginPage } from '../features/auth/LoginPage';
 import { PortalPage } from '../features/portal/PortalPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
@@ -16,6 +16,7 @@ import { PessoasPage } from '../features/pessoas/PessoasPage';
 import { MatriculasPage } from '../features/matriculas/MatriculasPage';
 import { AvaliacoesPage } from '../features/avaliacoes/AvaliacoesPage';
 import { FrequenciaPage } from '../features/frequencia/FrequenciaPage';
+import { UsuariosPage } from '../features/usuarios/UsuariosPage';
 
 /** Rotas da coordenação (ADMIN e PROFESSOR). ALUNO e RESPONSAVEL são desviados para /portal. */
 const coordenacaoRoutes: RouteObject[] = [
@@ -29,7 +30,8 @@ const coordenacaoRoutes: RouteObject[] = [
   { path: '/pessoas', element: <PessoasPage /> },
   { path: '/matriculas', element: <MatriculasPage /> },
   { path: '/avaliacoes', element: <AvaliacoesPage /> },
-  { path: '/frequencia', element: <FrequenciaPage /> }
+  { path: '/frequencia', element: <FrequenciaPage /> },
+  { element: <RequireAdmin />, children: [{ path: '/usuarios', element: <UsuariosPage /> }] }
 ];
 
 /** Árvore de rotas do portal; os testes a montam num MemoryRouter. */
