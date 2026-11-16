@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -52,6 +53,12 @@ public class UsuarioController {
     @PutMapping("/{id}")
     public UsuarioResponse atualizar(@PathVariable Long id, @Valid @RequestBody AtualizacaoUsuarioRequest request) {
         return usuarioService.atualizar(id, request);
+    }
+
+    @PatchMapping("/{id}/senha")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void alterarSenha(@PathVariable Long id, @Valid @RequestBody AlteracaoSenhaRequest request) {
+        usuarioService.alterarSenha(id, request);
     }
 
     @DeleteMapping("/{id}")

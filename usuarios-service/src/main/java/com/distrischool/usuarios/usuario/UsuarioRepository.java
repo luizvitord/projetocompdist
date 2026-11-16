@@ -14,6 +14,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
 
+    long countByAtivoTrueAndPerfil(Perfil perfil);
+
     Page<Usuario> findByAtivo(boolean ativo, Pageable pageable);
 
     Page<Usuario> findByAtivoAndPerfil(boolean ativo, Perfil perfil, Pageable pageable);

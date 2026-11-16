@@ -12,17 +12,19 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(UsuarioController.class)
+@WebMvcTest({UsuarioController.class, SessaoInternaController.class})
 class UsuarioControllerTest {
 
     private static final String CORPO_VALIDO = """
@@ -96,5 +98,25 @@ class UsuarioControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(usuarioService).desativar(1L);
+    }
+
+    @Test
+    void redefineSenhaPorEndpointDedicado() throws Exception {
+        mockMvc.perform(patch("/api/usuarios/1/senha")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"senha\": \"novosegredo\"}"))
+                .andExpect(status().isNoContent());
+
+        verify(usuarioService).alterarSenha(1L, new AlteracaoSenhaRequest("novosegredo"));
+    }
+
+    @Test
+    void expoeEstadoDeSessaoParaOsServicosInternos() throws Exception {
+        when(usuarioService.estadoSessao(1L)).thenReturn(new EstadoSessaoResponse(true, 4L));
+
+        mockMvc.perform(get("/interno/sessoes/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ativo").value(true))
+                .andExpect(jsonPath("$.versaoSessao").value(4));
     }
 }

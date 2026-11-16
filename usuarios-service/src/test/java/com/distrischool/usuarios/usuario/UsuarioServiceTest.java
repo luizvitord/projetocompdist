@@ -60,6 +60,21 @@ class UsuarioServiceTest {
     }
 
     @Test
+    void recusaVinculoIncompativelComPerfil() {
+        assertThatThrownBy(() -> usuarioService.criar(
+                new UsuarioRequest("Coordenação", "coord@distrischool.com", "segredo1", Perfil.ADMIN, 4L)))
+                .isInstanceOf(RegraNegocioException.class)
+                .hasMessageContaining("ADMIN");
+
+        assertThatThrownBy(() -> usuarioService.criar(
+                new UsuarioRequest("João", "joao@distrischool.com", "segredo1", Perfil.ALUNO, null)))
+                .isInstanceOf(RegraNegocioException.class)
+                .hasMessageContaining("vínculo");
+
+        verify(usuarioRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void desativarMantemORegistro() {
         Usuario usuario = new Usuario();
         usuario.setId(5L);
@@ -69,5 +84,47 @@ class UsuarioServiceTest {
 
         assertThat(usuario.isAtivo()).isFalse();
         verify(usuarioRepository, never()).delete(any());
+    }
+
+    @Test
+    void recusaDesativarOUltimoAdministradorAtivo() {
+        Usuario usuario = new Usuario();
+        usuario.setId(5L);
+        usuario.setPerfil(Perfil.ADMIN);
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.countByAtivoTrueAndPerfil(Perfil.ADMIN)).thenReturn(1L);
+
+        assertThatThrownBy(() -> usuarioService.desativar(5L))
+                .isInstanceOf(RegraNegocioException.class)
+                .hasMessageContaining("último administrador");
+        assertThat(usuario.isAtivo()).isTrue();
+    }
+
+    @Test
+    void trocaSenhaInvalidaSessoesAnteriores() {
+        Usuario usuario = new Usuario();
+        usuario.setId(5L);
+        usuario.setSenhaHash(passwordEncoder.encode("senhaanterior"));
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuario));
+
+        usuarioService.alterarSenha(5L, new AlteracaoSenhaRequest("novosegredo"));
+
+        assertThat(passwordEncoder.matches("novosegredo", usuario.getSenhaHash())).isTrue();
+        assertThat(usuario.getVersaoSessao()).isEqualTo(2L);
+        verify(usuarioRepository).saveAndFlush(usuario);
+    }
+
+    @Test
+    void retornaEstadoAtualDaSessao() {
+        Usuario usuario = new Usuario();
+        usuario.setId(5L);
+        usuario.setAtivo(false);
+        usuario.invalidarSessoesExistentes();
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(usuario));
+
+        EstadoSessaoResponse estado = usuarioService.estadoSessao(5L);
+
+        assertThat(estado.ativo()).isFalse();
+        assertThat(estado.versaoSessao()).isEqualTo(2L);
     }
 }

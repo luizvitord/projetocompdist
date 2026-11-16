@@ -60,6 +60,7 @@ class TokenServiceTest {
         assertThat(jwt.getClaimAsString("nome")).isEqualTo("Maria Lima");
         assertThat(jwt.getClaimAsString("email")).isEqualTo("maria@distrischool.com");
         assertThat(jwt.<Number>getClaim("referenciaId").longValue()).isEqualTo(3L);
+        assertThat(jwt.<Number>getClaim("sessao").longValue()).isEqualTo(1L);
         assertThat(jwt.getExpiresAt()).isEqualTo(gerado.expiraEm());
     }
 

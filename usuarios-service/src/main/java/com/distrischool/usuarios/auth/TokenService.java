@@ -38,7 +38,8 @@ public class TokenService {
                 .expiresAt(expiraEm)
                 .claim("nome", usuario.getNome())
                 .claim("email", usuario.getEmail())
-                .claim("perfil", usuario.getPerfil().name());
+                .claim("perfil", usuario.getPerfil().name())
+                .claim("sessao", usuario.getVersaoSessao());
         if (usuario.getReferenciaId() != null) {
             claims.claim("referenciaId", usuario.getReferenciaId());
         }

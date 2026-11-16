@@ -51,6 +51,14 @@ public class Usuario {
     @Column(nullable = false)
     private boolean ativo = true;
 
+    /** Incrementada quando uma sessão existente deixa de representar os dados de acesso atuais. */
+    @Column(name = "versao_sessao", nullable = false)
+    private long versaoSessao = 1;
+
+    public void invalidarSessoesExistentes() {
+        versaoSessao++;
+    }
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
