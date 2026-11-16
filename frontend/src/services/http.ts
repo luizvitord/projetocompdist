@@ -1,7 +1,9 @@
 import { ApiProblem, toApiProblem } from './problemDetail';
 import { clearSession, getSession } from './session';
 
-type QueryValue = string | number | boolean | null | undefined;
+type QueryScalar = string | number | boolean | null | undefined;
+/** Um array repete o parâmetro na URL (ex.: sort=data,desc&sort=id,desc). */
+type QueryValue = QueryScalar | readonly QueryScalar[];
 type RequestOptions = {
   query?: Record<string, QueryValue>;
   signal?: AbortSignal;
@@ -26,7 +28,10 @@ export const NETWORK_MESSAGE = 'Não foi possível conectar ao servidor. Verifiq
 function pathWithQuery(path: string, query?: Record<string, QueryValue>) {
   const url = new URL(`${baseUrl}${path}`, window.location.origin);
   Object.entries(query ?? {}).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+    const values: readonly QueryScalar[] = Array.isArray(value) ? value : [value as QueryScalar];
+    values.forEach((item) => {
+      if (item !== undefined && item !== null && item !== '') url.searchParams.append(key, String(item));
+    });
   });
   return `${url.pathname}${url.search}`;
 }

@@ -27,7 +27,7 @@ export function MatriculasPage() {
 
   useEffect(() => {
     setListError('');
-    api.get<SpringPagedModel<Matricula>>('/matriculas', { query: { page: number, size: 20 } })
+    api.get<SpringPagedModel<Matricula>>('/matriculas', { query: { page: number, size: 20, sort: 'id,desc' } })
       .then((data) => setPage(toPage(data))).catch(() => setListError('Não foi possível carregar as matrículas.'));
   }, [number, reload, showError]);
 
@@ -63,7 +63,7 @@ export function MatriculasPage() {
     catch (error) { showError(isApiProblem(error) ? error.detail : 'Não foi possível transferir.'); } finally { setSubmitting(false); }
   }
 
-  return <section className="space-y-5"><header className="flex items-center justify-between gap-3"><div><h1 className="text-2xl font-bold text-navy">Matrículas</h1><p className="text-sm text-slate-600">Registre, encerre e transfira vínculos escolares.</p></div>
+  return <section className="space-y-5"><header className="flex items-center justify-between gap-3"><div><h1 className="text-2xl font-bold text-navy">Matrículas</h1><p className="text-sm text-slate-600">Registre, encerre e transfira vínculos escolares. As mais recentes aparecem primeiro.</p></div>
     <Dialog title="Nova matrícula" open={createOpen} onOpenChange={setCreateOpen} trigger={<Button>Nova matrícula</Button>}><form className="grid gap-3" onSubmit={create}>
       <AlunoCombobox required />
       <TurmaCombobox required /><Button disabled={submitting} type="submit">{submitting ? 'Salvando...' : 'Criar matrícula'}</Button>
@@ -71,6 +71,6 @@ export function MatriculasPage() {
     {listError ? <div role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800"><p>{listError}</p><Button className="mt-3" type="button" variant="secondary" onClick={refresh}>Tentar novamente</Button></div> : !page ? <p role="status" className="rounded-lg bg-white p-4 text-slate-600">Carregando matrículas...</p> : page.content.length ? <><DataTable items={page.content} keyFor={(item) => item.id} columns={[
       { header: 'Matrícula', render: (item) => item.matriculaAluno }, { header: 'Aluno', render: (item) => item.alunoNome }, { header: 'Turma', render: (item) => rotuloTurma(turmas, item.turmaId) }, { header: 'Ano', render: (item) => item.anoLetivo }, { header: 'Status', render: (item) => item.status },
       { header: 'Ações', render: (item) => <div className="flex gap-2"><Dialog title="Alterar status" open={statusOpen === item.id} onOpenChange={(open) => setStatusOpen(open ? item.id : null)} trigger={<Button variant="secondary">Status</Button>}><form className="grid gap-3" onSubmit={(event) => void status(event, item.id)}><label>Novo status<select required name="status" className="mt-1 w-full rounded border p-2" defaultValue=""><option value="">Selecione o status</option>{['TRANCADA', 'CONCLUIDA', 'CANCELADA'].map((statusOption) => <option key={statusOption} value={statusOption}>{statusOption}</option>)}</select></label><label>Motivo<textarea name="motivo" className="mt-1 w-full rounded border p-2" /></label><Button disabled={submitting} type="submit">{submitting ? 'Salvando...' : 'Confirmar'}</Button></form></Dialog><Dialog title="Transferir matrícula" open={transferOpen === item.id} onOpenChange={(open) => setTransferOpen(open ? item.id : null)} trigger={<Button variant="secondary">Transferir</Button>}><form className="grid gap-3" onSubmit={(event) => void transfer(event, item.id)}><TurmaCombobox required name="turmaDestinoId" label="Turma de destino" excluirId={item.turmaId} anoFixo={item.anoLetivo} /><label>Motivo<textarea required name="motivo" className="mt-1 w-full rounded border p-2" /></label><Button disabled={submitting} type="submit">{submitting ? 'Salvando...' : 'Transferir'}</Button></form></Dialog></div> }
-    ]} /><Pagination page={page.number} totalPages={page.totalPages} onPageChange={setNumber} /></> : <EmptyState title="Nenhuma matrícula encontrada" description="Crie a primeira matrícula para começar." />}
+    ]} /><Pagination page={page.number} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={setNumber} /></> : <EmptyState title="Nenhuma matrícula encontrada" description="Crie a primeira matrícula para começar." />}
   </section>;
 }
