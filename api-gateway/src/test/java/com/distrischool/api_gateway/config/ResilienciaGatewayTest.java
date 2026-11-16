@@ -94,6 +94,7 @@ class ResilienciaGatewayTest {
         registry.add("gateway.administrativa-url", () -> url(administrativa));
         registry.add("gateway.usuarios-url", () -> url(usuarios));
         registry.add("gateway.notificacao-url", () -> url(usuarios));
+        registry.add("gateway.sessao.validar", () -> false);
     }
 
     @BeforeEach

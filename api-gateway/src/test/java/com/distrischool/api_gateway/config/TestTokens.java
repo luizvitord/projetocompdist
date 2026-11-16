@@ -29,17 +29,27 @@ final class TestTokens {
         return "Bearer " + token(perfil, referenciaId, SECRET, Instant.now().plus(Duration.ofHours(1)));
     }
 
+    static String bearerComSessao(String perfil, long usuarioId, long versaoSessao) {
+        return "Bearer " + token(perfil, null, SECRET, Instant.now().plus(Duration.ofHours(1)), usuarioId, versaoSessao);
+    }
+
     static String token(String perfil, String secret, Instant expiresAt) {
         return token(perfil, null, secret, expiresAt);
     }
 
     static String token(String perfil, Object referenciaId, String secret, Instant expiresAt) {
+        return token(perfil, referenciaId, secret, expiresAt, 1L, 1L);
+    }
+
+    private static String token(String perfil, Object referenciaId, String secret, Instant expiresAt,
+                                long usuarioId, long versaoSessao) {
         var key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         JwtClaimsSet.Builder builder = JwtClaimsSet.builder()
-                .subject("1")
+                .subject(String.valueOf(usuarioId))
                 .issuedAt(expiresAt.minus(Duration.ofHours(8)))
                 .expiresAt(expiresAt)
-                .claim("perfil", perfil);
+                .claim("perfil", perfil)
+                .claim("sessao", versaoSessao);
         if (referenciaId != null) {
             builder.claim("referenciaId", referenciaId);
         }

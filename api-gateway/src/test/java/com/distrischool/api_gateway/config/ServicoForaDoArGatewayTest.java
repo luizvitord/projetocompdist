@@ -34,6 +34,7 @@ class ServicoForaDoArGatewayTest {
         registry.add("gateway.administrativa-url", () -> closed);
         registry.add("gateway.usuarios-url", () -> closed);
         registry.add("gateway.notificacao-url", () -> closed);
+        registry.add("gateway.sessao.validar", () -> false);
     }
 
     @Test

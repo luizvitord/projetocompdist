@@ -35,7 +35,18 @@ class SecurityConfigTest {
     static void startUpstream() throws IOException {
         upstream = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         upstream.createContext("/", exchange -> {
-            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            String caminho = exchange.getRequestURI().getPath();
+            byte[] body = switch (caminho) {
+                case "/interno/sessoes/1" -> "{\"ativo\":true,\"versaoSessao\":1}".getBytes(StandardCharsets.UTF_8);
+                case "/interno/sessoes/2" -> "{\"ativo\":true,\"versaoSessao\":2}".getBytes(StandardCharsets.UTF_8);
+                default -> "ok".getBytes(StandardCharsets.UTF_8);
+            };
+            if ("/interno/sessoes/3".equals(caminho)) {
+                exchange.sendResponseHeaders(503, -1);
+                exchange.close();
+                return;
+            }
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
             exchange.close();
@@ -55,6 +66,7 @@ class SecurityConfigTest {
         registry.add("gateway.administrativa-url", () -> url);
         registry.add("gateway.usuarios-url", () -> url);
         registry.add("gateway.notificacao-url", () -> url);
+        registry.add("gateway.sessao.validar", () -> true);
     }
 
     @Test
@@ -86,6 +98,16 @@ class SecurityConfigTest {
 
         String expired = TestTokens.token("ADMIN", TestTokens.SECRET, Instant.now().minus(Duration.ofHours(1)));
         assertThat(send("GET", "/api/alunos", "Bearer " + expired)).isEqualTo(401);
+    }
+
+    @Test
+    void rejectsTokenWhoseSessionVersionWasRevoked() throws Exception {
+        assertThat(send("GET", "/api/turmas", TestTokens.bearerComSessao("ADMIN", 2L, 1L))).isEqualTo(401);
+    }
+
+    @Test
+    void refusesRequestsWhenTheSessionStateCannotBeValidated() throws Exception {
+        assertThat(send("GET", "/api/turmas", TestTokens.bearerComSessao("ADMIN", 3L, 1L))).isEqualTo(503);
     }
 
     /** Regression: ADMIN and PROFESSOR still read everything (ALUNO/RESPONSAVEL in AcessoDoAlunoTest). */

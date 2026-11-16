@@ -61,6 +61,7 @@ class AcessoDoAlunoTest {
         registry.add("gateway.administrativa-url", () -> url);
         registry.add("gateway.usuarios-url", () -> url);
         registry.add("gateway.notificacao-url", () -> url);
+        registry.add("gateway.sessao.validar", () -> false);
     }
 
     @ParameterizedTest

@@ -4,6 +4,8 @@ import com.distrischool.notificacao.notificacao.Destinatario;
 import com.distrischool.notificacao.notificacao.Perfil;
 import com.distrischool.notificacao.seguranca.DestinatarioJwt;
 import com.distrischool.notificacao.seguranca.TestTokens;
+import com.distrischool.notificacao.seguranca.ValidadorSessaoUsuario;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -25,12 +27,20 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 /** Autenticação do frame CONNECT e regras de SUBSCRIBE/SEND, com o decoder real do serviço. */
 class StompAutenticacaoInterceptorTest {
 
-    private final StompAutenticacaoInterceptor interceptor = new StompAutenticacaoInterceptor(decoder());
+    private final ValidadorSessaoUsuario validadorSessaoUsuario = mock(ValidadorSessaoUsuario.class);
+    private final StompAutenticacaoInterceptor interceptor = new StompAutenticacaoInterceptor(decoder(), validadorSessaoUsuario);
     private final MessageChannel canal = mock(MessageChannel.class);
+
+    @BeforeEach
+    void aceitaSessaoAtual() {
+        when(validadorSessaoUsuario.valida(any())).thenReturn(true);
+    }
 
     /** O mesmo decoder de SecurityConfig. */
     private static NimbusJwtDecoder decoder() {
@@ -104,6 +114,16 @@ class StompAutenticacaoInterceptorTest {
                     // O token não volta para o cliente nem vai para o log
                     .hasMessageNotContaining("eyJ");
         }
+    }
+
+    @Test
+    void connectComSessaoRevogadaERecusado() {
+        when(validadorSessaoUsuario.valida(any())).thenReturn(false);
+
+        assertThatThrownBy(() -> interceptor.preSend(
+                frame(StompCommand.CONNECT, TestTokens.bearer("ALUNO", 12L), null), canal))
+                .isInstanceOf(MessageDeliveryException.class)
+                .hasMessageContaining("Token inválido ou expirado");
     }
 
     @Test

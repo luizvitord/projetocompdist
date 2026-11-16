@@ -1,6 +1,7 @@
 package com.distrischool.notificacao.temporeal;
 
 import com.distrischool.notificacao.seguranca.DestinatarioJwt;
+import com.distrischool.notificacao.seguranca.ValidadorSessaoUsuario;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -19,7 +20,8 @@ import org.springframework.stereotype.Component;
 /**
  * Autentica as sessões STOMP. O navegador não consegue enviar cabeçalhos HTTP no handshake do
  * WebSocket, então o token vai no frame {@code CONNECT} ({@code Authorization: Bearer <token>}) e é
- * validado aqui com o mesmo {@link JwtDecoder} da API REST (assinatura, expiração e perfil).
+ * validado aqui com o mesmo {@link JwtDecoder} da API REST (assinatura, expiração e perfil), além
+ * do estado atual da sessão no usuários-service.
  * <p>
  * Uma exceção lançada daqui faz o Spring responder com um frame {@code ERROR} e fechar a sessão:
  * sem token válido não há conexão. Com token válido, o usuário da sessão passa a ser o
@@ -39,6 +41,7 @@ public class StompAutenticacaoInterceptor implements ChannelInterceptor {
     private static final String BEARER = "Bearer ";
 
     private final JwtDecoder jwtDecoder;
+    private final ValidadorSessaoUsuario validadorSessaoUsuario;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -69,6 +72,9 @@ public class StompAutenticacaoInterceptor implements ChannelInterceptor {
         }
         try {
             Jwt jwt = jwtDecoder.decode(authorization.substring(BEARER.length()).trim());
+            if (!validadorSessaoUsuario.valida(jwt)) {
+                throw new MessageDeliveryException("Token inválido ou expirado");
+            }
             DestinatarioPrincipal principal = new DestinatarioPrincipal(DestinatarioJwt.de(jwt));
             log.debug("Sessão WebSocket {} autenticada como {}", accessor.getSessionId(), principal.getName());
             return principal;

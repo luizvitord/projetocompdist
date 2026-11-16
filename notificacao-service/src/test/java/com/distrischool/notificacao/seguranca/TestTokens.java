@@ -36,7 +36,8 @@ public final class TestTokens {
                 .issuedAt(expiraEm.minus(Duration.ofHours(8)))
                 .expiresAt(expiraEm)
                 .claim("nome", "Usuário de Teste")
-                .claim("email", "teste@distrischool.com");
+                .claim("email", "teste@distrischool.com")
+                .claim("sessao", 1L);
         if (perfil != null) {
             claims.claim("perfil", perfil);
         }

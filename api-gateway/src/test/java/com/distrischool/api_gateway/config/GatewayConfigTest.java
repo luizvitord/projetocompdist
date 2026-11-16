@@ -81,6 +81,7 @@ class GatewayConfigTest {
         registry.add("gateway.usuarios-url", () -> url(usuarios));
         registry.add("gateway.notificacao-url", () -> url(notificacao));
         registry.add("gateway.allowed-origin", () -> "http://localhost:5173");
+        registry.add("gateway.sessao.validar", () -> false);
     }
 
     @Test

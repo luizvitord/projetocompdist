@@ -8,9 +8,11 @@ import com.distrischool.notificacao.notificacao.Perfil;
 import com.distrischool.notificacao.notificacao.TipoNotificacao;
 import com.distrischool.notificacao.seguranca.SecurityConfig;
 import com.distrischool.notificacao.seguranca.TestTokens;
+import com.distrischool.notificacao.seguranca.ValidadorSessaoUsuario;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -103,7 +105,15 @@ class WebSocketIntegracaoTest {
     @MockitoBean
     private NotificacaoService notificacaoService;
 
+    @MockitoBean
+    private ValidadorSessaoUsuario validadorSessaoUsuario;
+
     private final List<StompSession> sessoesAbertas = new ArrayList<>();
+
+    @BeforeEach
+    void aceitaSessaoAtual() {
+        when(validadorSessaoUsuario.valida(any())).thenReturn(true);
+    }
 
     @AfterEach
     void desconectar() {

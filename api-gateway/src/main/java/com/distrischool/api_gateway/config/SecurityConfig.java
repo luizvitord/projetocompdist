@@ -1,6 +1,7 @@
 package com.distrischool.api_gateway.config;
 
 import org.apache.tomcat.util.buf.EncodedSolidusHandling;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.tomcat.TomcatConnectorCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -14,10 +15,12 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
 
 import javax.crypto.spec.SecretKeySpec;
@@ -48,7 +51,9 @@ public class SecurityConfig {
     private static final String PROFESSOR = "PROFESSOR";
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, AcessoNegadoHandler acessoNegado) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, AcessoNegadoHandler acessoNegado,
+                                            FiltroSessaoAtiva filtroSessaoAtiva,
+                                            @Value("${gateway.sessao.validar:true}") boolean validarSessao) throws Exception {
         http
                 // API sem sessão nem cookies: o token vai em cada requisição, então não há CSRF
                 .csrf(csrf -> csrf.disable())
@@ -75,6 +80,9 @@ public class SecurityConfig {
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .accessDeniedHandler(acessoNegado)
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(perfilComoRole())));
+        if (validarSessao) {
+            http.addFilterBefore(filtroSessaoAtiva, AuthorizationFilter.class);
+        }
         return http.build();
     }
 
@@ -103,6 +111,24 @@ public class SecurityConfig {
     JwtDecoder jwtDecoder(@Value("${jwt.segredo}") String segredo) {
         var chave = new SecretKeySpec(segredo.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(chave).macAlgorithm(MacAlgorithm.HS256).build();
+    }
+
+    @Bean
+    RestClient usuariosRestClient(RestClient.Builder builder, GatewayRoutesProperties properties) {
+        return builder.baseUrl(properties.usuariosUrl()).build();
+    }
+
+    @Bean
+    FiltroSessaoAtiva filtroSessaoAtiva(ValidadorSessaoUsuario validadorSessaoUsuario) {
+        return new FiltroSessaoAtiva(validadorSessaoUsuario);
+    }
+
+    /** O filtro é executado apenas pela cadeia do Spring Security, depois da autenticação JWT. */
+    @Bean
+    FilterRegistrationBean<FiltroSessaoAtiva> impedirRegistroNoContainer(FiltroSessaoAtiva filtroSessaoAtiva) {
+        FilterRegistrationBean<FiltroSessaoAtiva> registro = new FilterRegistrationBean<>(filtroSessaoAtiva);
+        registro.setEnabled(false);
+        return registro;
     }
 
     /** {@code "perfil": "ADMIN"} no token vira a role ROLE_ADMIN usada em hasRole("ADMIN"). */
