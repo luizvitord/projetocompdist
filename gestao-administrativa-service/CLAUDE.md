@@ -121,6 +121,8 @@ Atualize os testes existentes de turma e crie testes para disciplinas.
 ### Gestão de Turmas e Disciplinas
 - Implementado: CRUD de turmas, atribuição de professores, capacidade; disciplinas e oferta
   de disciplinas por turma (nesta tarefa)
+- `GET /api/turmas` filtra por `anoLetivo`, `turno`, `professorId` e `busca` (parte do código ou do
+  nome, sem diferenciar maiúsculas; usado pelos campos de busca de turma do frontend)
 - Pendente: horários de aula, calendário escolar, feriados, detecção de conflitos de horário,
   importação via Excel
 

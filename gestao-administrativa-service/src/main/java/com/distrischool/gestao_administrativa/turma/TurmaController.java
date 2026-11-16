@@ -40,8 +40,9 @@ public class TurmaController {
             @RequestParam(required = false) Integer anoLetivo,
             @RequestParam(required = false) Turno turno,
             @RequestParam(required = false) Long professorId,
+            @RequestParam(required = false) String busca,
             @PageableDefault(size = 20, sort = "codigo", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(turmaService.buscar(anoLetivo, turno, professorId, pageable));
+        return new PagedModel<>(turmaService.buscar(anoLetivo, turno, professorId, busca, pageable));
     }
 
     @GetMapping("/{id}")

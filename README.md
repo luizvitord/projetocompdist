@@ -35,6 +35,10 @@ curl -X POST http://localhost:8080/api/usuarios -H "Authorization: Bearer $TOKEN
 
 Uma conta sem `referenciaId` vê só um aviso para procurar a coordenação.
 
+## Busca de alunos e turmas nos formulários
+
+Os campos que escolhem um aluno, uma turma, uma disciplina ou um professor (matrículas, transferência, avaliações, frequência e ofertas da turma) não carregam mais uma página fixa de opções: são campos de busca (`SearchCombobox`, em `frontend/src/components/ui`) que consultam a API cerca de 300 ms depois da última tecla e mostram até 10 sugestões, por isso funcionam com qualquer quantidade de registros. Aluno: parte do nome, ou o número de matrícula completo se o texto tiver só dígitos. Turma: ano letivo (o atual por padrão; na transferência, o da matrícula) e parte do código ou do nome, pelo filtro `busca` de `GET /api/turmas`. Setas, Enter e Esc funcionam como num `<select>`.
+
 ## Notificações em tempo real
 
 O sino no topo do portal mostra as notificações do usuário logado e a contagem de não lidas; uma notificação nova chega por WebSocket (STOMP) e aparece na hora. Para ver: crie um usuário `RESPONSAVEL` ligado a um aluno (pela API, `POST /api/usuarios`), entre com ele numa janela anônima e, na janela da coordenação, lance uma nota para o aluno. O passo a passo, a arquitetura (tópicos, destinatários, idempotência, DLT, fan-out entre réplicas e por que o WebSocket não passa pelo gateway) estão em [docs/NOTIFICACOES.md](docs/NOTIFICACOES.md).

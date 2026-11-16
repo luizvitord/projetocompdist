@@ -48,7 +48,8 @@ public class TurmaService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TurmaResponse> buscar(Integer anoLetivo, Turno turno, Long professorId, Pageable pageable) {
+    public Page<TurmaResponse> buscar(Integer anoLetivo, Turno turno, Long professorId, String busca,
+                                     Pageable pageable) {
         Specification<Turma> spec = Specification.unrestricted();
         if (anoLetivo != null) {
             spec = spec.and(TurmaSpecifications.anoLetivoIgual(anoLetivo));
@@ -58,6 +59,9 @@ public class TurmaService {
         }
         if (professorId != null) {
             spec = spec.and(TurmaSpecifications.possuiProfessor(professorId));
+        }
+        if (busca != null && !busca.isBlank()) {
+            spec = spec.and(TurmaSpecifications.codigoOuNomeContem(busca.strip()));
         }
         return turmaRepository.findAll(spec, pageable).map(TurmaResponse::from);
     }

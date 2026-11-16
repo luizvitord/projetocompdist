@@ -1,4 +1,6 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
+import { TurmaCombobox } from '../../components/busca/TurmaCombobox';
+import { rotuloTurma, useTurmasPorId } from '../../components/busca/useTurmasPorId';
 import { useFeedback } from '../../components/feedback/FeedbackProvider';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -12,22 +14,23 @@ import type { Turma } from '../../types/turma';
 
 type AvaliacaoDraft = Omit<Avaliacao, 'id' | 'createdAt' | 'updatedAt'>;
 
-function AvaliacaoForm({ avaliacao, turmas, onSubmit }: { avaliacao?: Avaliacao; turmas: Turma[]; onSubmit: (draft: AvaliacaoDraft) => Promise<void> }) {
-  const [turmaId, setTurmaId] = useState(avaliacao?.turmaId ?? 0);
+function AvaliacaoForm({ avaliacao, turmaInicial, onSubmit }: { avaliacao?: Avaliacao; turmaInicial?: Turma | null; onSubmit: (draft: AvaliacaoDraft) => Promise<void> }) {
+  const [turma, setTurma] = useState<Turma | null>(turmaInicial ?? null);
   const [disciplinaId, setDisciplinaId] = useState(avaliacao?.disciplinaId ?? 0);
   const [saving, setSaving] = useState(false);
-  const turma = useMemo(() => turmas.find((item) => item.id === turmaId), [turmas, turmaId]);
+  const turmaId = turma?.id ?? 0;
   const disciplinas = turma?.disciplinas ?? [];
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    if (!Number(form.get('turmaId'))) return;
     setSaving(true);
     try {
       await onSubmit({ turmaId: Number(form.get('turmaId')), disciplinaId: Number(form.get('disciplinaId')), bimestre: Number(form.get('bimestre')), tipo: String(form.get('tipo')), descricao: String(form.get('descricao')), peso: Number(form.get('peso')), notaMaxima: Number(form.get('notaMaxima')), data: String(form.get('data')) });
     } finally { setSaving(false); }
   }
   return <form className="grid gap-3 sm:grid-cols-2" onSubmit={(event) => void submit(event)}>
-    <label>Turma<select required name="turmaId" aria-label="Turma da avaliação" className="mt-1 w-full rounded border p-2" value={turmaId || ''} onChange={(event) => { setTurmaId(Number(event.target.value)); setDisciplinaId(0); }}><option value="">Selecione a turma</option>{turmas.map((item) => <option key={item.id} value={item.id}>{item.codigo} — {item.nome} — {item.anoLetivo}</option>)}</select></label>
+    <div className="sm:col-span-2"><TurmaCombobox required label="Turma da avaliação" defaultSelected={turmaInicial} onSelect={(item) => { setTurma(item); setDisciplinaId(0); }} /></div>
     <label>Disciplina<select required name="disciplinaId" aria-label="Disciplina da avaliação" className="mt-1 w-full rounded border p-2" value={disciplinaId || ''} onChange={(event) => setDisciplinaId(Number(event.target.value))} disabled={!turmaId || !disciplinas.length}><option value="">{turmaId ? 'Selecione a disciplina' : 'Selecione primeiro a turma'}</option>{disciplinas.map((item) => <option key={item.disciplinaId} value={item.disciplinaId}>{item.codigo} — {item.nome}</option>)}</select></label>
     <label>Descrição<input required name="descricao" defaultValue={avaliacao?.descricao} className="mt-1 w-full rounded border p-2" /></label>
     <label>Tipo<select required name="tipo" defaultValue={avaliacao?.tipo ?? 'PROVA'} className="mt-1 w-full rounded border p-2">{['PROVA', 'TRABALHO', 'ATIVIDADE', 'RECUPERACAO'].map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}</select></label>
@@ -41,7 +44,6 @@ function AvaliacaoForm({ avaliacao, turmas, onSubmit }: { avaliacao?: Avaliacao;
 
 export function AvaliacoesPage() {
   const [page, setPage] = useState<Page<Avaliacao> | null>(null);
-  const [turmas, setTurmas] = useState<Turma[]>([]);
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [avaliacaoAberta, setAvaliacaoAberta] = useState<Avaliacao | null>(null);
   const [notas, setNotas] = useState<Record<string, string>>({});
@@ -55,10 +57,10 @@ export function AvaliacoesPage() {
   useEffect(() => {
     setListError('');
     api.get<SpringPagedModel<Avaliacao>>('/avaliacoes', { query: { page: 0, size: 20 } }).then((data) => setPage(toPage(data))).catch(() => setListError('Não foi possível carregar as avaliações.'));
-    api.get<SpringPagedModel<Turma>>('/turmas', { query: { page: 0, size: 100 } }).then((data) => setTurmas(toPage(data).content)).catch(() => showError('Não foi possível carregar as turmas disponíveis.'));
-  }, [reload, showError]);
-  const turmaLabel = (id: number) => { const turma = turmas.find((item) => item.id === id); return turma ? `${turma.codigo} — ${turma.nome}` : 'Turma não encontrada'; };
-  const disciplinaLabel = (turmaId: number, disciplinaId: number) => { const disciplina = turmas.find((item) => item.id === turmaId)?.disciplinas.find((item) => item.disciplinaId === disciplinaId); return disciplina ? `${disciplina.codigo} — ${disciplina.nome}` : 'Disciplina não encontrada'; };
+  }, [reload]);
+  // Só as turmas citadas na página exibida; a escolha de turma no formulário é feita por busca
+  const turmas = useTurmasPorId(page?.content.map((item) => item.turmaId) ?? []);
+  const disciplinaLabel = (turmaId: number, disciplinaId: number) => { const turma = turmas[turmaId]; if (turma === undefined) return 'Carregando...'; const disciplina = turma?.disciplinas.find((item) => item.disciplinaId === disciplinaId); return disciplina ? `${disciplina.codigo} — ${disciplina.nome}` : `Disciplina #${disciplinaId}`; };
   async function save(draft: AvaliacaoDraft, item?: Avaliacao) {
     try {
       if (item) await api.put(`/avaliacoes/${item.id}`, draft); else await api.post('/avaliacoes', draft);
@@ -83,8 +85,8 @@ export function AvaliacoesPage() {
     try { await api.post(`/avaliacoes/${avaliacao.id}/notas`, payload); setAvaliacaoAberta(null); showSuccess('Notas lançadas com sucesso.'); }
     catch (error) { showError(isApiProblem(error) ? error.detail : 'Não foi possível lançar as notas.'); } finally { setSavingGrades(false); }
   }
-  return <section className="space-y-5"><header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold text-navy">Avaliações e notas</h1><p className="text-sm text-slate-600">Crie avaliações e lance as notas dos alunos matriculados.</p></div><Dialog title="Nova avaliação" open={createOpen} onOpenChange={setCreateOpen} trigger={<Button>Nova avaliação</Button>}><AvaliacaoForm turmas={turmas} onSubmit={save} /></Dialog></header>
-    {listError ? <div role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800"><p>{listError}</p><Button className="mt-3" type="button" variant="secondary" onClick={refresh}>Tentar novamente</Button></div> : page ? <DataTable items={page.content} keyFor={(item) => item.id} columns={[{ header: 'Descrição', render: (item) => item.descricao }, { header: 'Turma', render: (item) => turmaLabel(item.turmaId) }, { header: 'Disciplina', render: (item) => disciplinaLabel(item.turmaId, item.disciplinaId) }, { header: 'Bimestre', render: (item) => item.bimestre }, { header: 'Ações', render: (item) => <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setEditing(item)}>Editar</Button><ConfirmDialog title="Excluir avaliação" description="A avaliação e suas notas serão removidas quando o backend permitir esta operação." confirmLabel="Excluir" trigger={<Button variant="secondary">Excluir</Button>} onConfirm={() => remove(item)} /><Dialog title="Lançar notas" open={avaliacaoAberta?.id === item.id} onOpenChange={(open) => { if (!open) setAvaliacaoAberta(null); }} trigger={<Button onClick={() => void abrirLancamento(item)}>Lançar notas</Button>}><form className="grid gap-3" onSubmit={(event) => void grades(event, item)}>{alunos.length ? alunos.map((aluno) => <label key={aluno.matricula}>{aluno.nome} — {aluno.matricula}<input aria-label={`Nota de ${aluno.nome}`} type="number" min="0" step="0.01" value={notas[aluno.matricula] ?? ''} onChange={(event) => setNotas((atual) => ({ ...atual, [aluno.matricula]: event.target.value }))} className="mt-1 w-full rounded border p-2" disabled={savingGrades} /></label>) : <p className="text-sm text-slate-600">Carregando alunos matriculados...</p>}<Button disabled={!alunos.length || avaliacaoAberta?.id !== item.id || savingGrades} type="submit">{savingGrades ? 'Salvando...' : 'Salvar notas'}</Button></form></Dialog></div> }]} /> : <p role="status">Carregando avaliações...</p>}
-    <Dialog title="Editar avaliação" open={Boolean(editing)} onOpenChange={(open) => { if (!open) setEditing(null); }} trigger={<span />}>{editing ? <AvaliacaoForm avaliacao={editing} turmas={turmas} onSubmit={(draft) => save(draft, editing)} /> : null}</Dialog>
+  return <section className="space-y-5"><header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold text-navy">Avaliações e notas</h1><p className="text-sm text-slate-600">Crie avaliações e lance as notas dos alunos matriculados.</p></div><Dialog title="Nova avaliação" open={createOpen} onOpenChange={setCreateOpen} trigger={<Button>Nova avaliação</Button>}><AvaliacaoForm onSubmit={save} /></Dialog></header>
+    {listError ? <div role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800"><p>{listError}</p><Button className="mt-3" type="button" variant="secondary" onClick={refresh}>Tentar novamente</Button></div> : page ? <DataTable items={page.content} keyFor={(item) => item.id} columns={[{ header: 'Descrição', render: (item) => item.descricao }, { header: 'Turma', render: (item) => rotuloTurma(turmas, item.turmaId) }, { header: 'Disciplina', render: (item) => disciplinaLabel(item.turmaId, item.disciplinaId) }, { header: 'Bimestre', render: (item) => item.bimestre }, { header: 'Ações', render: (item) => <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setEditing(item)}>Editar</Button><ConfirmDialog title="Excluir avaliação" description="A avaliação e suas notas serão removidas quando o backend permitir esta operação." confirmLabel="Excluir" trigger={<Button variant="secondary">Excluir</Button>} onConfirm={() => remove(item)} /><Dialog title="Lançar notas" open={avaliacaoAberta?.id === item.id} onOpenChange={(open) => { if (!open) setAvaliacaoAberta(null); }} trigger={<Button onClick={() => void abrirLancamento(item)}>Lançar notas</Button>}><form className="grid gap-3" onSubmit={(event) => void grades(event, item)}>{alunos.length ? alunos.map((aluno) => <label key={aluno.matricula}>{aluno.nome} — {aluno.matricula}<input aria-label={`Nota de ${aluno.nome}`} type="number" min="0" step="0.01" value={notas[aluno.matricula] ?? ''} onChange={(event) => setNotas((atual) => ({ ...atual, [aluno.matricula]: event.target.value }))} className="mt-1 w-full rounded border p-2" disabled={savingGrades} /></label>) : <p className="text-sm text-slate-600">Carregando alunos matriculados...</p>}<Button disabled={!alunos.length || avaliacaoAberta?.id !== item.id || savingGrades} type="submit">{savingGrades ? 'Salvando...' : 'Salvar notas'}</Button></form></Dialog></div> }]} /> : <p role="status">Carregando avaliações...</p>}
+    <Dialog title="Editar avaliação" open={Boolean(editing)} onOpenChange={(open) => { if (!open) setEditing(null); }} trigger={<span />}>{editing ? <AvaliacaoForm key={`${editing.id}-${turmas[editing.turmaId] ? 'turma' : 'sem-turma'}`} avaliacao={editing} turmaInicial={turmas[editing.turmaId]} onSubmit={(draft) => save(draft, editing)} /> : null}</Dialog>
   </section>;
 }

@@ -4,8 +4,12 @@ import com.distrischool.gestao_administrativa.common.RecursoNaoEncontradoExcepti
 import com.distrischool.gestao_administrativa.common.RegraNegocioException;
 import com.distrischool.gestao_administrativa.turma.TurmaResponse.DisciplinaOfertada;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -13,6 +17,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
@@ -125,6 +131,39 @@ class TurmaControllerTest {
 
         mockMvc.perform(delete("/api/turmas/12/disciplinas/3"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void buscaPorTextoEAnoLetivoRepassaFiltrosAoServico() throws Exception {
+        when(turmaService.buscar(eq(2026), isNull(), isNull(), eq("ano a"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(resposta()), PageRequest.of(0, 10), 1));
+
+        mockMvc.perform(get("/api/turmas")
+                        .param("anoLetivo", "2026")
+                        .param("busca", "ano a")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].codigo").value("9A-2026"))
+                .andExpect(jsonPath("$.content[0].nome").value("9º Ano A"))
+                .andExpect(jsonPath("$.page.size").value(10))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(turmaService).buscar(eq(2026), isNull(), isNull(), eq("ano a"), pageable.capture());
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(10);
+        assertThat(pageable.getValue().getSort().getOrderFor("codigo")).isNotNull();
+    }
+
+    @Test
+    void listagemSemBuscaRepassaFiltroNulo() throws Exception {
+        when(turmaService.buscar(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        mockMvc.perform(get("/api/turmas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+
+        verify(turmaService).buscar(isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
