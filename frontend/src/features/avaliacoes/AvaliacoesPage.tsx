@@ -8,6 +8,9 @@ import { DataTable } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Pagination } from '../../components/ui/Pagination';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { SemResultados } from '../../components/ui/SemResultados';
+import { useBuscaNaUrl } from '../../components/ui/useBuscaNaUrl';
 import { api, isApiProblem } from '../../services/http';
 import { buscarTodasAsPaginas } from '../../services/paginas';
 import { toPage, type Page, type SpringPagedModel } from '../../services/pagination';
@@ -54,7 +57,8 @@ const SEM_FILTROS: Filtros = { turma: null, disciplinaId: '', bimestre: '' };
 
 export function AvaliacoesPage() {
   const [page, setPage] = useState<Page<Avaliacao> | null>(null);
-  const [pagina, setPagina] = useState(0);
+  // Busca e página na URL; a busca é feita no servidor (descrição, turma e disciplina)
+  const { busca, pagina, setBusca, setPagina } = useBuscaNaUrl();
   const [filtros, setFiltros] = useState<Filtros>(SEM_FILTROS);
   // Recria o campo de turma do filtro ao limpar (ele guarda a turma escolhida)
   const [versaoFiltros, setVersaoFiltros] = useState(0);
@@ -75,11 +79,11 @@ export function AvaliacoesPage() {
   useEffect(() => {
     const controller = new AbortController();
     setListError('');
-    api.get<SpringPagedModel<Avaliacao>>('/avaliacoes', { signal: controller.signal, query: { turmaId: turmaFiltro, disciplinaId: filtros.disciplinaId, bimestre: filtros.bimestre, page: pagina, size: TAMANHO_PAGINA_AVALIACOES, sort: ORDEM_AVALIACOES } })
+    api.get<SpringPagedModel<Avaliacao>>('/avaliacoes', { signal: controller.signal, query: { busca, turmaId: turmaFiltro, disciplinaId: filtros.disciplinaId, bimestre: filtros.bimestre, page: pagina, size: TAMANHO_PAGINA_AVALIACOES, sort: ORDEM_AVALIACOES } })
       .then((data) => setPage(toPage(data)))
       .catch(() => { if (!controller.signal.aborted) setListError('Não foi possível carregar as avaliações.'); });
     return () => controller.abort();
-  }, [reload, pagina, turmaFiltro, filtros.disciplinaId, filtros.bimestre]);
+  }, [reload, busca, pagina, turmaFiltro, filtros.disciplinaId, filtros.bimestre]);
 
   const itens = page ? (destaque && pagina === 0 && !page.content.some((item) => item.id === destaque.id) ? [destaque, ...page.content] : page.content) : [];
   // Só as turmas citadas na página exibida; a escolha de turma no formulário é feita por busca
@@ -87,6 +91,7 @@ export function AvaliacoesPage() {
   const disciplinaLabel = (turmaId: number, disciplinaId: number) => { const turma = turmas[turmaId]; if (turma === undefined) return 'Carregando...'; const disciplina = turma?.disciplinas.find((item) => item.disciplinaId === disciplinaId); return disciplina ? `${disciplina.codigo} — ${disciplina.nome}` : `Disciplina #${disciplinaId}`; };
 
   function mudarPagina(numero: number) { setDestaque(null); setPagina(numero); }
+  function mudarBusca(texto: string) { setDestaque(null); setBusca(texto); }
   function mudarFiltros(novos: Partial<Filtros>) { setDestaque(null); setPagina(0); setFiltros((atual) => ({ ...atual, ...novos })); }
   function limparFiltros() { setDestaque(null); setPagina(0); setFiltros(SEM_FILTROS); setVersaoFiltros((valor) => valor + 1); }
 
@@ -128,11 +133,13 @@ export function AvaliacoesPage() {
   </div>;
 
   const tabela = page ? itens.length ? <><DataTable items={itens} keyFor={(item) => item.id} columns={[{ header: 'Descrição', render: (item) => <>{item.descricao}{item.id === destaque?.id ? <span className="ml-2 rounded bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-800">salva agora</span> : null}</> }, { header: 'Data', render: (item) => item.data ? new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR') : '' }, { header: 'Turma', render: (item) => rotuloTurma(turmas, item.turmaId) }, { header: 'Disciplina', render: (item) => disciplinaLabel(item.turmaId, item.disciplinaId) }, { header: 'Bimestre', render: (item) => item.bimestre }, { header: 'Ações', render: (item) => <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setEditing(item)}>Editar</Button><ConfirmDialog title="Excluir avaliação" description="A avaliação e suas notas serão removidas quando o backend permitir esta operação." confirmLabel="Excluir" trigger={<Button variant="secondary">Excluir</Button>} onConfirm={() => remove(item)} /><Dialog title="Lançar notas" open={avaliacaoAberta?.id === item.id} onOpenChange={(open) => { if (!open) setAvaliacaoAberta(null); }} trigger={<Button onClick={() => void abrirLancamento(item)}>Lançar notas</Button>}><form className="grid gap-3" onSubmit={(event) => void grades(event, item)}>{alunos.length ? alunos.map((aluno) => <label key={aluno.matricula}>{aluno.nome} — {aluno.matricula}<input aria-label={`Nota de ${aluno.nome}`} type="number" min="0" step="0.01" value={notas[aluno.matricula] ?? ''} onChange={(event) => setNotas((atual) => ({ ...atual, [aluno.matricula]: event.target.value }))} className="mt-1 w-full rounded border p-2" disabled={savingGrades} /></label>) : <p className="text-sm text-slate-600">Carregando alunos matriculados...</p>}<Button disabled={!alunos.length || avaliacaoAberta?.id !== item.id || savingGrades} type="submit">{savingGrades ? 'Salvando...' : 'Salvar notas'}</Button></form></Dialog></div> }]} /><Pagination page={page.number} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={mudarPagina} /></>
+    : busca ? <SemResultados busca={busca} onLimpar={() => mudarBusca('')} />
     : temFiltro ? <EmptyState title="Nenhuma avaliação com esses filtros" description="Mude ou limpe os filtros para ver outras avaliações." actionLabel="Limpar filtros" onAction={limparFiltros} />
       : <EmptyState title="Nenhuma avaliação cadastrada" description="Crie a primeira avaliação para lançar notas." />
     : <p role="status">Carregando avaliações...</p>;
 
   return <section className="space-y-5"><header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold text-navy">Avaliações e notas</h1><p className="text-sm text-slate-600">Crie avaliações e lance as notas dos alunos matriculados. As mais recentes aparecem primeiro.</p></div><Dialog title="Nova avaliação" open={createOpen} onOpenChange={setCreateOpen} trigger={<Button>Nova avaliação</Button>}><AvaliacaoForm onSubmit={save} /></Dialog></header>
+    <SearchInput value={busca} onSearch={mudarBusca} placeholder="Buscar por descrição, turma ou disciplina" label="Buscar avaliações" />
     {filtrosUi}
     {listError ? <div role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800"><p>{listError}</p><Button className="mt-3" type="button" variant="secondary" onClick={refresh}>Tentar novamente</Button></div> : tabela}
     <Dialog title="Editar avaliação" open={Boolean(editing)} onOpenChange={(open) => { if (!open) setEditing(null); }} trigger={<span />}>{editing ? <AvaliacaoForm key={`${editing.id}-${turmas[editing.turmaId] ? 'turma' : 'sem-turma'}`} avaliacao={editing} turmaInicial={turmas[editing.turmaId]} onSubmit={(draft) => save(draft, editing)} /> : null}</Dialog>

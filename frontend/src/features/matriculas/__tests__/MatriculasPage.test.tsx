@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { MatriculasPage } from '../MatriculasPage';
 import { FeedbackProvider } from '../../../components/feedback/FeedbackProvider';
@@ -14,7 +15,7 @@ const buscaTurmas = http.get('/api/turmas', () => HttpResponse.json(pagina([turm
 const buscaAlunos = http.get('/api/alunos', () => HttpResponse.json(pagina([{ id: 1, matricula: '2026000001', nome: 'Gabriel' }])));
 
 const server = setupServer(); beforeAll(() => server.listen({ onUnhandledRequest: 'error' })); afterEach(() => server.resetHandlers()); afterAll(() => server.close());
-const renderizar = () => render(<FeedbackProvider><MatriculasPage /></FeedbackProvider>);
+const renderizar = () => render(<FeedbackProvider><MemoryRouter><MatriculasPage /></MemoryRouter></FeedbackProvider>);
 
 describe('MatriculasPage', () => {
   it('shows the turma of each enrollment without loading a fixed page of turmas, and surfaces a 409 status transition', async () => {
@@ -77,5 +78,28 @@ describe('matrículas loading failures', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar as matrículas.');
     expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
     expect(screen.queryByText('Nenhuma matrícula encontrada')).not.toBeInTheDocument();
+  });
+});
+
+describe('busca de matrículas', () => {
+  it('envia a busca com a ordem mais recentes primeiro e mostra "nenhum resultado"', async () => {
+    const pedidas: URL[] = [];
+    server.use(turmaPorId, http.get('/api/matriculas', ({ request }) => {
+      const url = new URL(request.url); pedidas.push(url);
+      const lista = url.searchParams.get('busca') === 'zzz' ? [] : [{ id: 4, matriculaAluno: '2026000001', alunoNome: 'Gabriel', turmaId: 2, anoLetivo: 2026, status: 'ATIVA', dataMatricula: '2026-01-01' }];
+      return HttpResponse.json({ content: lista, page: { size: 20, number: 0, totalElements: lista.length, totalPages: lista.length ? 1 : 0 } });
+    }));
+    renderizar();
+    expect(await screen.findByText('Gabriel')).toBeVisible();
+    expect(pedidas[0].searchParams.get('sort')).toBe('id,desc');
+    const campo = screen.getByRole('searchbox', { name: 'Buscar matrículas' });
+    expect(campo).toHaveAttribute('placeholder', 'Buscar por aluno, número de matrícula ou turma');
+
+    fireEvent.change(campo, { target: { value: 'zzz' } });
+
+    expect(await screen.findByText('Nenhum resultado para "zzz"')).toBeVisible();
+    expect(screen.queryByText('Nenhuma matrícula encontrada')).not.toBeInTheDocument();
+    expect(pedidas[pedidas.length - 1].searchParams.get('busca')).toBe('zzz');
+    expect(pedidas[pedidas.length - 1].searchParams.get('page')).toBe('0');
   });
 });

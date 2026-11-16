@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { AvaliacoesPage } from '../AvaliacoesPage';
 import { FeedbackProvider } from '../../../components/feedback/FeedbackProvider';
@@ -17,10 +18,14 @@ let avaliacoes = base();
 const requisicoes: URL[] = [];
 const turma = { id: 1, codigo: '9A-2026', nome: '9º Ano A', anoLetivo: 2026, turno: 'MANHA', capacidade: 30, professores: [], disciplinas: [{ disciplinaId: 2, codigo: 'MAT', nome: 'Matemática', professorId: null, professorNome: null }] };
 
+const semAcento = (texto: string) => texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
 /** Simula GET /api/avaliacoes com filtros, ordenação (sort repetido) e paginação, como o Spring Data. */
 function listar(url: URL) {
   const sorts = url.searchParams.getAll('sort');
-  const filtrados = avaliacoes.filter((a) => ['turmaId', 'disciplinaId', 'bimestre'].every((campo) => !url.searchParams.get(campo) || String(a[campo as keyof AvaliacaoApi]) === url.searchParams.get(campo)));
+  const busca = semAcento(url.searchParams.get('busca') ?? '');
+  const filtrados = avaliacoes.filter((a) => ['turmaId', 'disciplinaId', 'bimestre'].every((campo) => !url.searchParams.get(campo) || String(a[campo as keyof AvaliacaoApi]) === url.searchParams.get(campo))
+    && (!busca || semAcento(a.descricao).includes(busca)));
   const ordenados = [...filtrados].sort((a, b) => {
     for (const sort of sorts.length ? sorts : ['data,asc']) {
       const [campo, direcao] = sort.split(',');
@@ -42,7 +47,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => { server.resetHandlers(); requisicoes.length = 0; avaliacoes = base(); });
 afterAll(() => server.close());
 
-const renderizar = () => render(<FeedbackProvider><AvaliacoesPage /></FeedbackProvider>);
+function Local() { const local = useLocation(); return <output data-testid="local">{local.pathname}{local.search}</output>; }
+const renderizar = (url = '/avaliacoes') => render(<FeedbackProvider><MemoryRouter initialEntries={[url]}><AvaliacoesPage /><Local /></MemoryRouter></FeedbackProvider>);
 const primeiraLinha = () => screen.getAllByRole('row')[1];
 
 describe('AvaliacoesPage — paginação e ordem', () => {
@@ -121,5 +127,33 @@ describe('AvaliacoesPage — paginação e ordem', () => {
     expect(await screen.findByText('Página 1 de 3 · 47 registros')).toBeVisible();
     expect(within(primeiraLinha()).getByText('Recuperação de fevereiro')).toBeVisible();
     expect(within(primeiraLinha()).getByText('salva agora')).toBeVisible();
+  });
+
+  it('encontra a "Avaliação Teste" digitando "avaliacao teste" e guarda a busca na URL', async () => {
+    renderizar();
+    await screen.findByText('Página 1 de 3 · 46 registros');
+    const campo = screen.getByRole('searchbox', { name: 'Buscar avaliações' });
+    expect(campo).toHaveAttribute('placeholder', 'Buscar por descrição, turma ou disciplina');
+
+    fireEvent.change(campo, { target: { value: 'avaliacao teste' } });
+
+    expect(await screen.findByText('Página 1 de 1 · 1 registro')).toBeVisible();
+    expect(within(primeiraLinha()).getByText('Avaliação Teste')).toBeVisible();
+    const ultima = requisicoes[requisicoes.length - 1];
+    expect(ultima.searchParams.get('busca')).toBe('avaliacao teste');
+    expect(ultima.searchParams.getAll('sort')).toEqual(['data,desc', 'id,desc']);
+    expect(screen.getByTestId('local').textContent).toBe('/avaliacoes?busca=avaliacao+teste');
+  });
+
+  it('combina a busca com os filtros e mostra "nenhum resultado"', async () => {
+    renderizar('/avaliacoes?busca=prova');
+    expect(await screen.findByText('Página 1 de 3 · 45 registros')).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText('Filtrar por bimestre'), { target: { value: '1' } });
+    await waitFor(() => expect(requisicoes[requisicoes.length - 1].searchParams.get('bimestre')).toBe('1'));
+    expect(requisicoes[requisicoes.length - 1].searchParams.get('busca')).toBe('prova');
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar avaliações' }), { target: { value: 'nada disso' } });
+    expect(await screen.findByText('Nenhum resultado para "nada disso"')).toBeVisible();
   });
 });
