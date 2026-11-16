@@ -1,10 +1,12 @@
 package com.distrischool.gestao_administrativa.professor;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import com.distrischool.gestao_administrativa.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_administrativa.common.RegraNegocioException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -26,11 +28,16 @@ public class ProfessorService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ProfessorResponse> buscar(String nome, Pageable pageable) {
-        Page<Professor> page = StringUtils.hasText(nome)
-                ? professorRepository.findByNomeContainingIgnoreCase(nome.trim(), pageable)
-                : professorRepository.findAll(pageable);
-        return page.map(ProfessorResponse::from);
+    public Page<ProfessorResponse> buscar(String nome, String busca, Pageable pageable) {
+        Specification<Professor> spec = Specification.unrestricted();
+        if (StringUtils.hasText(nome)) {
+            spec = spec.and(ProfessorSpecifications.nomeContem(nome.trim()));
+        }
+        String termo = BuscaTexto.normalizar(busca);
+        if (termo != null) {
+            spec = spec.and(ProfessorSpecifications.busca(termo));
+        }
+        return professorRepository.findAll(spec, pageable).map(ProfessorResponse::from);
     }
 
     @Transactional(readOnly = true)

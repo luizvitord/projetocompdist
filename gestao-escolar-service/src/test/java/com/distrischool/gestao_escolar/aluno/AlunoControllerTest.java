@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -94,7 +95,7 @@ class AlunoControllerTest {
 
     @Test
     void listaPaginadaComFiltros() throws Exception {
-        when(alunoService.buscar(eq("maria"), eq("2026000001"), eq(12L), any(Pageable.class)))
+        when(alunoService.buscar(eq("maria"), eq("2026000001"), eq(12L), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(resposta()), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/alunos").param("nome", "maria").param("matricula", "2026000001")

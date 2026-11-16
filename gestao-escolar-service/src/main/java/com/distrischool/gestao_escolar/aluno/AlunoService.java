@@ -1,5 +1,6 @@
 package com.distrischool.gestao_escolar.aluno;
 
+import com.distrischool.gestao_escolar.common.BuscaTexto;
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_escolar.common.RegraNegocioException;
 import com.distrischool.gestao_escolar.event.StudentCreatedEvent;
@@ -37,7 +38,7 @@ public class AlunoService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AlunoResponse> buscar(String nome, String matricula, Long turmaId, Pageable pageable) {
+    public Page<AlunoResponse> buscar(String nome, String matricula, Long turmaId, String busca, Pageable pageable) {
         Specification<Aluno> spec = Specification.unrestricted();
         if (StringUtils.hasText(nome)) {
             spec = spec.and(AlunoSpecifications.nomeContem(nome.trim()));
@@ -47,6 +48,10 @@ public class AlunoService {
         }
         if (turmaId != null) {
             spec = spec.and(AlunoSpecifications.matriculadoNaTurma(turmaId));
+        }
+        String termo = BuscaTexto.normalizar(busca);
+        if (termo != null) {
+            spec = spec.and(AlunoSpecifications.busca(termo));
         }
         return alunoRepository.findAll(spec, pageable).map(AlunoResponse::from);
     }

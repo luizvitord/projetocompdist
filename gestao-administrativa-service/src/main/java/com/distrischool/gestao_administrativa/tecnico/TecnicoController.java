@@ -1,6 +1,8 @@
 package com.distrischool.gestao_administrativa.tecnico;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -41,8 +43,10 @@ public class TecnicoController {
             @RequestParam(required = false) Cargo cargo,
             @RequestParam(required = false) String setor,
             @RequestParam(defaultValue = "true") boolean ativo,
+            @RequestParam(required = false)
+            @Size(max = BuscaTexto.TAMANHO_MAXIMO, message = BuscaTexto.MENSAGEM_TAMANHO) String busca,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(tecnicoService.buscar(nome, cargo, setor, ativo, pageable));
+        return new PagedModel<>(tecnicoService.buscar(nome, cargo, setor, ativo, busca, pageable));
     }
 
     @GetMapping("/{id}")

@@ -1,6 +1,8 @@
 package com.distrischool.gestao_administrativa.disciplina;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -39,8 +41,10 @@ public class DisciplinaController {
     public PagedModel<DisciplinaResponse> buscar(
             @RequestParam(required = false) String nome,
             @RequestParam(defaultValue = "true") boolean ativa,
+            @RequestParam(required = false)
+            @Size(max = BuscaTexto.TAMANHO_MAXIMO, message = BuscaTexto.MENSAGEM_TAMANHO) String busca,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(disciplinaService.buscar(nome, ativa, pageable));
+        return new PagedModel<>(disciplinaService.buscar(nome, ativa, busca, pageable));
     }
 
     @GetMapping("/{id}")

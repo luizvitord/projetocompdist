@@ -1,6 +1,8 @@
 package com.distrischool.gestao_administrativa.turma;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -40,7 +42,8 @@ public class TurmaController {
             @RequestParam(required = false) Integer anoLetivo,
             @RequestParam(required = false) Turno turno,
             @RequestParam(required = false) Long professorId,
-            @RequestParam(required = false) String busca,
+            @RequestParam(required = false)
+            @Size(max = BuscaTexto.TAMANHO_MAXIMO, message = BuscaTexto.MENSAGEM_TAMANHO) String busca,
             @PageableDefault(size = 20, sort = "codigo", direction = Sort.Direction.ASC) Pageable pageable) {
         return new PagedModel<>(turmaService.buscar(anoLetivo, turno, professorId, busca, pageable));
     }

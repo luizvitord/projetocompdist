@@ -1,5 +1,6 @@
 package com.distrischool.gestao_administrativa.tecnico;
 
+import com.distrischool.gestao_administrativa.common.BuscaTexto;
 import com.distrischool.gestao_administrativa.common.RecursoNaoEncontradoException;
 import com.distrischool.gestao_administrativa.common.RegraNegocioException;
 import com.distrischool.gestao_administrativa.event.StaffCreatedEvent;
@@ -47,7 +48,8 @@ public class TecnicoService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TecnicoResponse> buscar(String nome, Cargo cargo, String setor, boolean ativo, Pageable pageable) {
+    public Page<TecnicoResponse> buscar(String nome, Cargo cargo, String setor, boolean ativo, String busca,
+                                       Pageable pageable) {
         Specification<Tecnico> spec = TecnicoSpecifications.ativoIgual(ativo);
         if (StringUtils.hasText(nome)) {
             spec = spec.and(TecnicoSpecifications.nomeContem(nome.trim()));
@@ -57,6 +59,10 @@ public class TecnicoService {
         }
         if (StringUtils.hasText(setor)) {
             spec = spec.and(TecnicoSpecifications.setorIgual(setor.trim()));
+        }
+        String termo = BuscaTexto.normalizar(busca);
+        if (termo != null) {
+            spec = spec.and(TecnicoSpecifications.busca(termo));
         }
         return tecnicoRepository.findAll(spec, pageable).map(TecnicoResponse::from);
     }

@@ -97,22 +97,22 @@ class DisciplinaControllerTest {
 
     @Test
     void listaSomenteAtivasPorPadrao() throws Exception {
-        when(disciplinaService.buscar(eq("mat"), eq(true), any())).thenReturn(Page.empty());
+        when(disciplinaService.buscar(eq("mat"), eq(true), isNull(), any())).thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/disciplinas").param("nome", "mat"))
                 .andExpect(status().isOk());
 
-        verify(disciplinaService).buscar(eq("mat"), eq(true), any());
+        verify(disciplinaService).buscar(eq("mat"), eq(true), isNull(), any());
     }
 
     @Test
     void listaDisciplinasInativasQuandoSolicitado() throws Exception {
-        when(disciplinaService.buscar(isNull(), eq(false), any())).thenReturn(Page.empty());
+        when(disciplinaService.buscar(isNull(), eq(false), isNull(), any())).thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/disciplinas").param("ativa", "false"))
                 .andExpect(status().isOk());
 
-        verify(disciplinaService).buscar(isNull(), eq(false), any());
+        verify(disciplinaService).buscar(isNull(), eq(false), isNull(), any());
     }
 
     @Test

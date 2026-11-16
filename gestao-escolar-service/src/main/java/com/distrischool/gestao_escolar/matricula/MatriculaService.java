@@ -1,5 +1,6 @@
 package com.distrischool.gestao_escolar.matricula;
 
+import com.distrischool.gestao_escolar.common.BuscaTexto;
 import com.distrischool.gestao_escolar.aluno.AlunoService;
 import com.distrischool.gestao_escolar.aluno.Aluno;
 import com.distrischool.gestao_escolar.common.RecursoNaoEncontradoException;
@@ -72,7 +73,7 @@ public class MatriculaService {
 
     @Transactional(readOnly = true)
     public Page<MatriculaResponse> buscar(Long alunoId, Long turmaId, Integer anoLetivo, StatusMatricula status,
-                                          Pageable pageable) {
+                                          String busca, Pageable pageable) {
         Specification<Matricula> spec = Specification.unrestricted();
         if (alunoId != null) {
             spec = spec.and(MatriculaSpecifications.alunoIgual(alunoId));
@@ -85,6 +86,10 @@ public class MatriculaService {
         }
         if (status != null) {
             spec = spec.and(MatriculaSpecifications.statusIgual(status));
+        }
+        String termo = BuscaTexto.normalizar(busca);
+        if (termo != null) {
+            spec = spec.and(MatriculaSpecifications.busca(termo));
         }
         return matriculaRepository.findAll(spec, pageable).map(this::resposta);
     }

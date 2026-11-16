@@ -99,13 +99,13 @@ class TecnicoControllerTest {
 
     @Test
     void listaSomenteAtivosPorPadrao() throws Exception {
-        when(tecnicoService.buscar(isNull(), eq(Cargo.TECNICO_TI), isNull(), eq(true), any()))
+        when(tecnicoService.buscar(isNull(), eq(Cargo.TECNICO_TI), isNull(), eq(true), isNull(), any()))
                 .thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/tecnicos").param("cargo", "TECNICO_TI"))
                 .andExpect(status().isOk());
 
-        verify(tecnicoService).buscar(isNull(), eq(Cargo.TECNICO_TI), isNull(), eq(true), any());
+        verify(tecnicoService).buscar(isNull(), eq(Cargo.TECNICO_TI), isNull(), eq(true), isNull(), any());
     }
 
     @Test
