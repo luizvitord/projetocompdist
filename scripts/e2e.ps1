@@ -19,6 +19,7 @@
       frequencia       Chamadas, relatorio por turma e frequencia por aluno
       notas            Avaliacoes, lancamento e correcao de notas, historico
       boletim          Medias, recuperacao e situacao (CURSANDO, APROVADO, REPROVADO_*)
+      busca            Parametro busca das listagens (sem acento, sem maiusculas, filtros, 400)
       fluxo            Fluxo funcional completo de um aluno
       notificacoes     Um tipo de notificacao por evento, destinatarios, WebSocket, idempotencia
       dlt              Dead Letter Topic do schedule.updated
@@ -107,7 +108,7 @@ $Ctx = @{
 }
 
 $PastaModulos = Join-Path $PSScriptRoot 'e2e'
-foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin', 'SecaoPerfis', 'SecaoInfra', 'SecaoAdministrativa', 'SecaoEscolar', 'SecaoFluxo', 'SecaoNotificacoes',
+foreach ($modulo in @('Nucleo', 'Http', 'Docker', 'Dados', 'Stomp', 'SecaoLogin', 'SecaoPerfis', 'SecaoInfra', 'SecaoAdministrativa', 'SecaoEscolar', 'SecaoBusca', 'SecaoFluxo', 'SecaoNotificacoes',
                       'SecaoResiliencia', 'SecaoRateLimit')) {
     . (Join-Path $PastaModulos ($modulo + '.ps1'))
 }
@@ -123,6 +124,7 @@ $Catalogo = @(
     @{ Id = 'frequencia';                 Nome = 'Frequencia';                                        Funcao = 'Invoke-SecaoFrequencia';                ParaContainers = $false }
     @{ Id = 'notas';                      Nome = 'Avaliacoes e notas';                                Funcao = 'Invoke-SecaoNotas';                     ParaContainers = $false }
     @{ Id = 'boletim';                    Nome = 'Boletim';                                           Funcao = 'Invoke-SecaoBoletim';                   ParaContainers = $false }
+    @{ Id = 'busca';                      Nome = 'Busca nas listagens';                               Funcao = 'Invoke-SecaoBusca';                     ParaContainers = $false }
     @{ Id = 'fluxo';                      Nome = 'Fluxo funcional';                                   Funcao = 'Invoke-SecaoFluxo';                     ParaContainers = $false }
     @{ Id = 'notificacoes';               Nome = 'Notificacoes';                                      Funcao = 'Invoke-SecaoNotificacoes';              ParaContainers = $false }
     @{ Id = 'dlt';                        Nome = 'Dead Letter Topic';                                 Funcao = 'Invoke-SecaoDlt';                       ParaContainers = $false }

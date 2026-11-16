@@ -35,6 +35,30 @@ curl -X POST http://localhost:8080/api/usuarios -H "Authorization: Bearer $TOKEN
 
 Uma conta sem `referenciaId` vê só um aviso para procurar a coordenação.
 
+## Busca nas listagens
+
+Alunos, Disciplinas, Pessoas (professores e técnicos), Turmas, Matrículas e Avaliações têm um campo de busca
+(`SearchInput`, em `frontend/src/components/ui`) que consulta a API cerca de 300 ms depois da última tecla,
+cancela a consulta anterior e volta para a página 1. A busca e a página ficam na URL
+(`?busca=...&pagina=...`), então recarregar a tela ou voltar no navegador mantém o filtro; × ou Esc limpam.
+A busca é feita no servidor, junto com a paginação e os outros filtros, pelo parâmetro `busca` das
+listagens (até 100 caracteres; sem diferenciar maiúsculas nem acentos, pela extensão `unaccent` do
+PostgreSQL):
+
+| Endpoint | Campos pesquisados |
+|---|---|
+| `GET /api/alunos` | nome, número de matrícula, email |
+| `GET /api/professores` | nome, email, qualificação |
+| `GET /api/tecnicos` | nome, email, setor (nunca o CPF) |
+| `GET /api/disciplinas` | código, nome |
+| `GET /api/turmas` | código, nome |
+| `GET /api/matriculas` | nome e número de matrícula do aluno, código e nome da turma |
+| `GET /api/avaliacoes` | descrição, código e nome da turma, nome da disciplina |
+
+Avaliações e Matrículas aparecem das mais recentes para as mais antigas (`sort=data,desc&sort=id,desc` e
+`sort=id,desc`, enviados pelo frontend), com o total de registros. Avaliações também filtram por turma,
+disciplina e bimestre, e a avaliação recém-salva aparece no topo da página 1.
+
 ## Busca de alunos e turmas nos formulários
 
 Os campos que escolhem um aluno, uma turma, uma disciplina ou um professor (matrículas, transferência, avaliações, frequência e ofertas da turma) não carregam mais uma página fixa de opções: são campos de busca (`SearchCombobox`, em `frontend/src/components/ui`) que consultam a API cerca de 300 ms depois da última tecla e mostram até 10 sugestões, por isso funcionam com qualquer quantidade de registros. Aluno: parte do nome, ou o número de matrícula completo se o texto tiver só dígitos. Turma: ano letivo (o atual por padrão; na transferência, o da matrícula) e parte do código ou do nome, pelo filtro `busca` de `GET /api/turmas`. Setas, Enter e Esc funcionam como num `<select>`.
