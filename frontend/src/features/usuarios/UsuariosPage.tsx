@@ -8,6 +8,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Pagination } from '../../components/ui/Pagination';
 import { api, isApiProblem } from '../../services/http';
 import { toPage, type Page, type SpringPagedModel } from '../../services/pagination';
+import { getSession } from '../../services/session';
 import type { Perfil, Usuario } from '../../types/auth';
 import { perfilLabels } from '../../types/auth';
 
@@ -64,7 +65,7 @@ function FormularioUsuario({ usuario, submitting, onSubmit, erros }: {
     {!editando ? <label className="text-sm font-medium text-slate-700">Senha
       <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" name="senha" type="password" minLength={6} maxLength={72} required disabled={submitting} />
       {erros.senha ? <span className="mt-1 block text-xs text-rose-700">{erros.senha}</span> : null}
-    </label> : <p className="self-end text-xs text-slate-500">A senha não é alterada nesta tela.</p>}
+    </label> : <p className="self-end text-xs text-slate-500">Use a ação “Alterar senha” para redefinir o acesso.</p>}
     <label className="text-sm font-medium text-slate-700">Perfil
       <select className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" name="perfil" value={perfil} onChange={(event) => { setPerfil(event.target.value as Perfil); setReferenciaId(''); }} disabled={submitting}>
         {perfis.map((opcao) => <option key={opcao} value={opcao}>{perfilLabels[opcao]}</option>)}
@@ -90,8 +91,11 @@ export function UsuariosPage() {
   const [errosFormulario, setErrosFormulario] = useState<Record<string, string>>({});
   const [criacaoAberta, setCriacaoAberta] = useState(false);
   const [edicao, setEdicao] = useState<UsuarioAdministrativo | null>(null);
+  const [redefinicaoSenha, setRedefinicaoSenha] = useState<UsuarioAdministrativo | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [erroRedefinicao, setErroRedefinicao] = useState('');
   const { showError, showSuccess } = useFeedback();
+  const idUsuarioAtual = getSession()?.usuario.id;
 
   const atualizar = () => setRecarregar((atual) => atual + 1);
   useEffect(() => {
@@ -130,6 +134,19 @@ export function UsuariosPage() {
     } catch (erro) { showError(isApiProblem(erro) ? erro.detail : 'Não foi possível desativar o usuário.'); }
   }
 
+  async function redefinirSenha(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!redefinicaoSenha) return;
+    const senha = String(new FormData(event.currentTarget).get('senha') ?? '');
+    setEnviando(true); setErroRedefinicao('');
+    try {
+      await api.patch(`/usuarios/${redefinicaoSenha.id}/senha`, { senha });
+      setRedefinicaoSenha(null); showSuccess('Senha redefinida com sucesso.');
+    } catch (erro) {
+      setErroRedefinicao(isApiProblem(erro) ? erro.detail : 'Não foi possível redefinir a senha.');
+    } finally { setEnviando(false); }
+  }
+
   return <section className="space-y-5">
     <header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold text-navy">Usuários</h1><p className="mt-1 text-sm text-slate-600">Gerencie acessos e vínculos dos perfis da escola.</p></div>
       <Dialog title="Novo usuário" open={criacaoAberta} onOpenChange={(aberta) => { setCriacaoAberta(aberta); if (aberta) setErrosFormulario({}); }} trigger={<Button>Novo usuário</Button>}>
@@ -144,10 +161,20 @@ export function UsuariosPage() {
     </label>
     {erroLista ? <div role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800"><p>{erroLista}</p><Button className="mt-3" type="button" variant="secondary" onClick={atualizar}>Tentar novamente</Button></div> : !pagina ? <p role="status" className="rounded-lg bg-white p-4 text-slate-600">Carregando usuários...</p> : pagina.content.length ? <><DataTable items={pagina.content} keyFor={(usuario) => usuario.id} columns={[
       { header: 'Nome', render: (usuario) => usuario.nome }, { header: 'E-mail', render: (usuario) => usuario.email }, { header: 'Perfil', render: (usuario) => perfilLabels[usuario.perfil] }, { header: 'Vínculo', render: rotuloReferencia },
-      { header: 'Ações', render: (usuario) => <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => { setErrosFormulario({}); setEdicao(usuario); }}>Editar</Button><ConfirmDialog title="Desativar usuário" description="A conta não poderá mais entrar no sistema, mas o histórico será mantido." confirmLabel="Desativar" trigger={<Button type="button" variant="secondary">Desativar</Button>} onConfirm={() => desativar(usuario)} /></div> }
+      { header: 'Ações', render: (usuario) => <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => { setErrosFormulario({}); setEdicao(usuario); }}>Editar</Button><Button type="button" variant="secondary" onClick={() => { setErroRedefinicao(''); setRedefinicaoSenha(usuario); }}>Alterar senha</Button>{usuario.id !== idUsuarioAtual ? <ConfirmDialog title="Desativar usuário" description="A conta não poderá mais entrar no sistema, mas o histórico será mantido." confirmLabel="Desativar" trigger={<Button type="button" variant="secondary">Desativar</Button>} onConfirm={() => desativar(usuario)} /> : null}</div> }
     ]} /><Pagination page={pagina.number} totalPages={pagina.totalPages} onPageChange={setNumeroPagina} /></> : <EmptyState title="Nenhum usuário encontrado" description="Cadastre a primeira conta para começar." />}
     <Dialog title="Editar usuário" open={Boolean(edicao)} onOpenChange={(aberta) => { if (!aberta) { setEdicao(null); setErrosFormulario({}); } }} trigger={<span />}>
       {edicao ? <FormularioUsuario key={edicao.id} usuario={edicao} submitting={enviando} erros={errosFormulario} onSubmit={editar} /> : null}
+    </Dialog>
+    <Dialog title="Redefinir senha" open={Boolean(redefinicaoSenha)} onOpenChange={(aberta) => { if (!aberta) { setRedefinicaoSenha(null); setErroRedefinicao(''); } }} trigger={<span />}>
+      {redefinicaoSenha ? <form className="space-y-3" onSubmit={(event) => void redefinirSenha(event)}>
+        <p className="text-sm text-slate-600">Defina uma nova senha para {redefinicaoSenha.nome}.</p>
+        <label className="block text-sm font-medium text-slate-700">Nova senha
+          <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" name="senha" type="password" minLength={6} maxLength={72} required disabled={enviando} />
+        </label>
+        {erroRedefinicao ? <p role="alert" className="text-sm text-rose-700">{erroRedefinicao}</p> : null}
+        <Button type="submit" disabled={enviando}>{enviando ? 'Redefinindo...' : 'Redefinir senha'}</Button>
+      </form> : null}
     </Dialog>
   </section>;
 }
