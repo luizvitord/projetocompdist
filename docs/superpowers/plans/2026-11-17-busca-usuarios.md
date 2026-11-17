@@ -38,11 +38,11 @@
 - Consumes: `GET /api/usuarios?busca={texto}&perfil={perfil}&ativo={ativo}&page={n}`.
 - Produces: página de usuários cujo nome ou e-mail contém o texto, sem ignorar filtros existentes.
 
-- [ ] Escrever teste que falha ao buscar por nome/e-mail com perfil e ativo.
-- [ ] Executar o teste e confirmar a falha.
-- [ ] Propagar `busca` do controller para service e repository, usando consulta paginada case-insensitive.
-- [ ] Executar `sh mvnw -q test` e confirmar sucesso.
-- [ ] Commitar a etapa.
+- [x] Escrever teste que falha ao buscar por nome/e-mail com perfil e ativo.
+- [x] Executar o teste e confirmar a falha.
+- [x] Propagar `busca` do controller para service e repository, usando consulta paginada case-insensitive.
+- [x] Executar `sh mvnw -q test` e confirmar sucesso.
+- [x] Commitar a etapa.
 
 ### Task 2: Campo de busca na gestão de usuários
 
@@ -54,8 +54,8 @@
 - Consumes: o parâmetro `busca` de `GET /api/usuarios`.
 - Produces: busca debounced, estado `?busca=` na URL e paginação reiniciada.
 
-- [ ] Escrever teste de tela que falha ao digitar e enviar `busca`.
-- [ ] Executar o teste e confirmar a falha.
-- [ ] Reutilizar `SearchInput` e `useBuscaNaUrl`, cancelando consulta anterior como nas demais listagens.
-- [ ] Executar testes do arquivo e a suíte completa, lint e build do frontend.
-- [ ] Commitar a etapa.
+- [x] Escrever teste de tela que falha ao digitar e enviar `busca`.
+- [x] Executar o teste e confirmar a falha.
+- [x] Reutilizar `SearchInput` e `useBuscaNaUrl`, cancelando consulta anterior como nas demais listagens.
+- [x] Executar testes do arquivo e a suíte completa, lint e build do frontend.
+- [x] Commitar a etapa.
