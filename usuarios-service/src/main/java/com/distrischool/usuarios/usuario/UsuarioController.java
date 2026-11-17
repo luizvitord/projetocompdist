@@ -41,8 +41,9 @@ public class UsuarioController {
     public PagedModel<UsuarioResponse> buscar(
             @RequestParam(required = false) Perfil perfil,
             @RequestParam(defaultValue = "true") boolean ativo,
+            @RequestParam(required = false) String busca,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return new PagedModel<>(usuarioService.buscar(perfil, ativo, pageable));
+        return new PagedModel<>(usuarioService.buscar(perfil, ativo, busca, pageable));
     }
 
     @GetMapping("/{id}")

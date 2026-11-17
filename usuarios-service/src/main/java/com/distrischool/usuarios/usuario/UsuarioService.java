@@ -35,10 +35,9 @@ public class UsuarioService {
     }
 
     @Transactional(readOnly = true)
-    public Page<UsuarioResponse> buscar(Perfil perfil, boolean ativo, Pageable pageable) {
-        Page<Usuario> usuarios = perfil == null
-                ? usuarioRepository.findByAtivo(ativo, pageable)
-                : usuarioRepository.findByAtivoAndPerfil(ativo, perfil, pageable);
+    public Page<UsuarioResponse> buscar(Perfil perfil, boolean ativo, String busca, Pageable pageable) {
+        String termo = busca == null || busca.isBlank() ? null : busca.trim();
+        Page<Usuario> usuarios = usuarioRepository.buscar(ativo, perfil, termo, pageable);
         return usuarios.map(UsuarioResponse::from);
     }
 

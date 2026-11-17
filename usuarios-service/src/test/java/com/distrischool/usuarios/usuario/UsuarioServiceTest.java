@@ -4,9 +4,14 @@ import com.distrischool.usuarios.common.RegraNegocioException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -126,5 +131,22 @@ class UsuarioServiceTest {
 
         assertThat(estado.ativo()).isFalse();
         assertThat(estado.versaoSessao()).isEqualTo(2L);
+    }
+
+    @Test
+    void buscaPorTextoMantemOsFiltrosDePerfilEAtivo() {
+        Usuario usuario = new Usuario();
+        usuario.setId(7L);
+        usuario.setNome("Ana Souza");
+        usuario.setEmail("ana.souza@escola.test");
+        usuario.setPerfil(Perfil.PROFESSOR);
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<Usuario> resultado = new PageImpl<>(List.of(usuario), pageable, 1);
+        when(usuarioRepository.buscar(true, Perfil.PROFESSOR, "ana.souza@escola.test", pageable)).thenReturn(resultado);
+
+        Page<UsuarioResponse> pagina = usuarioService.buscar(Perfil.PROFESSOR, true, " ana.souza@escola.test ", pageable);
+
+        assertThat(pagina.getContent()).extracting(UsuarioResponse::email).containsExactly("ana.souza@escola.test");
+        verify(usuarioRepository).buscar(true, Perfil.PROFESSOR, "ana.souza@escola.test", pageable);
     }
 }
