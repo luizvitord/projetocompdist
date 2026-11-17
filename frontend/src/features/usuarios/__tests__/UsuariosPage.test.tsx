@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { FeedbackProvider } from '../../../components/feedback/FeedbackProvider';
 import { clearSession, saveSession } from '../../../services/session';
@@ -13,8 +14,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => { server.resetHandlers(); clearSession(); });
 afterAll(() => server.close());
 
-function renderPage() {
-  return render(<FeedbackProvider><UsuariosPage /></FeedbackProvider>);
+function renderPage(initialPath = '/usuarios') {
+  return render(<MemoryRouter initialEntries={[initialPath]}><FeedbackProvider><UsuariosPage /></FeedbackProvider></MemoryRouter>);
 }
 
 describe('UsuariosPage', () => {
@@ -90,5 +91,19 @@ describe('UsuariosPage', () => {
     expect(await screen.findByText('Coordenação')).toBeVisible();
 
     expect(screen.queryByRole('button', { name: 'Desativar' })).not.toBeInTheDocument();
+  });
+
+  it('searches users by name or email', async () => {
+    const requests: URL[] = [];
+    server.use(http.get('/api/usuarios', ({ request }) => {
+      requests.push(new URL(request.url));
+      return HttpResponse.json(paginaVazia);
+    }));
+    renderPage();
+    await screen.findByText('Nenhum usuário encontrado');
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar usuários por nome ou e-mail' }), { target: { value: 'ana.souza' } });
+
+    await waitFor(() => expect(requests.at(-1)?.searchParams.get('busca')).toBe('ana.souza'));
   });
 });

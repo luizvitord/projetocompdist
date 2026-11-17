@@ -6,6 +6,9 @@ import { DataTable } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Pagination } from '../../components/ui/Pagination';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { SemResultados } from '../../components/ui/SemResultados';
+import { useBuscaNaUrl } from '../../components/ui/useBuscaNaUrl';
 import { api, isApiProblem } from '../../services/http';
 import { toPage, type Page, type SpringPagedModel } from '../../services/pagination';
 import { getSession } from '../../services/session';
@@ -84,7 +87,7 @@ function FormularioUsuario({ usuario, submitting, onSubmit, erros }: {
 
 export function UsuariosPage() {
   const [pagina, setPagina] = useState<Page<UsuarioAdministrativo> | null>(null);
-  const [numeroPagina, setNumeroPagina] = useState(0);
+  const { busca, pagina: numeroPagina, setBusca, setPagina: setNumeroPagina } = useBuscaNaUrl();
   const [perfilFiltro, setPerfilFiltro] = useState<Perfil | ''>('');
   const [recarregar, setRecarregar] = useState(0);
   const [erroLista, setErroLista] = useState('');
@@ -99,11 +102,13 @@ export function UsuariosPage() {
 
   const atualizar = () => setRecarregar((atual) => atual + 1);
   useEffect(() => {
+    const controller = new AbortController();
     setErroLista('');
-    api.get<SpringPagedModel<UsuarioAdministrativo>>('/usuarios', { query: { perfil: perfilFiltro || undefined, ativo: true, page: numeroPagina, size: 20 } })
+    api.get<SpringPagedModel<UsuarioAdministrativo>>('/usuarios', { signal: controller.signal, query: { perfil: perfilFiltro || undefined, ativo: true, busca: busca || undefined, page: numeroPagina, size: 20 } })
       .then((dados) => setPagina(toPage(dados)))
-      .catch(() => setErroLista('Não foi possível carregar os usuários.'));
-  }, [numeroPagina, perfilFiltro, recarregar]);
+      .catch(() => { if (!controller.signal.aborted) setErroLista('Não foi possível carregar os usuários.'); });
+    return () => controller.abort();
+  }, [busca, numeroPagina, perfilFiltro, recarregar]);
 
   function falhaFormulario(erro: unknown) {
     setErrosFormulario(isApiProblem(erro) ? erro.fieldErrors : { form: 'Não foi possível salvar os dados.' });
@@ -159,10 +164,11 @@ export function UsuariosPage() {
         {perfis.map((perfil) => <option key={perfil} value={perfil}>{perfilLabels[perfil]}</option>)}
       </select>
     </label>
+    <SearchInput value={busca} onSearch={setBusca} label="Buscar usuários por nome ou e-mail" placeholder="Buscar por nome ou e-mail" />
     {erroLista ? <div role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-800"><p>{erroLista}</p><Button className="mt-3" type="button" variant="secondary" onClick={atualizar}>Tentar novamente</Button></div> : !pagina ? <p role="status" className="rounded-lg bg-white p-4 text-slate-600">Carregando usuários...</p> : pagina.content.length ? <><DataTable items={pagina.content} keyFor={(usuario) => usuario.id} columns={[
       { header: 'Nome', render: (usuario) => usuario.nome }, { header: 'E-mail', render: (usuario) => usuario.email }, { header: 'Perfil', render: (usuario) => perfilLabels[usuario.perfil] }, { header: 'Vínculo', render: rotuloReferencia },
       { header: 'Ações', render: (usuario) => <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => { setErrosFormulario({}); setEdicao(usuario); }}>Editar</Button><Button type="button" variant="secondary" onClick={() => { setErroRedefinicao(''); setRedefinicaoSenha(usuario); }}>Alterar senha</Button>{usuario.id !== idUsuarioAtual ? <ConfirmDialog title="Desativar usuário" description="A conta não poderá mais entrar no sistema, mas o histórico será mantido." confirmLabel="Desativar" trigger={<Button type="button" variant="secondary">Desativar</Button>} onConfirm={() => desativar(usuario)} /> : null}</div> }
-    ]} /><Pagination page={pagina.number} totalPages={pagina.totalPages} onPageChange={setNumeroPagina} /></> : <EmptyState title="Nenhum usuário encontrado" description="Cadastre a primeira conta para começar." />}
+    ]} /><Pagination page={pagina.number} totalPages={pagina.totalPages} onPageChange={setNumeroPagina} /></> : busca ? <SemResultados busca={busca} onLimpar={() => setBusca('')} /> : <EmptyState title="Nenhum usuário encontrado" description="Cadastre a primeira conta para começar." />}
     <Dialog title="Editar usuário" open={Boolean(edicao)} onOpenChange={(aberta) => { if (!aberta) { setEdicao(null); setErrosFormulario({}); } }} trigger={<span />}>
       {edicao ? <FormularioUsuario key={edicao.id} usuario={edicao} submitting={enviando} erros={errosFormulario} onSubmit={editar} /> : null}
     </Dialog>
